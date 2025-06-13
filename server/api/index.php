@@ -1,5 +1,4 @@
 <?php
-// --- notes.php ---
 
 // --- CORS Configuration ---
 header("Access-Control-Allow-Origin: http://localhost:3000");

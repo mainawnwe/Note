@@ -6,28 +6,37 @@ import Footer from './Footer';
 import Modal from './Modal';
 import { useTheme } from '../context/ThemeContext';
 
-const NOTES_API_ENDPOINT = process.env.REACT_APP_NOTES_API || 'http://localhost:8888/notes';
+const NOTES_API_ENDPOINT = 'http://localhost:8000/api/index.php';
 
 export default function MainContent() {
+  const { darkMode } = useTheme();
+
   const [notes, setNotes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [modalContent, setModalContent] = useState({});
   const [isGridView, setIsGridView] = useState(true);
-  const { darkMode } = useTheme();  // Get theme context
 
   useEffect(() => {
     fetchNotes();
+    // eslint-disable-next-line
   }, []);
 
   const fetchNotes = async () => {
     try {
       setIsLoading(true);
       const response = await fetch(NOTES_API_ENDPOINT);
-      if (!response.ok) throw new Error('Failed to fetch notes');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to fetch notes');
+      }
       const data = await response.json();
-      setNotes(data);
+      const formattedData = data.map(note => ({
+        ...note,
+        createdAt: note.created_at
+      }));
+      setNotes(formattedData);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -37,16 +46,22 @@ export default function MainContent() {
 
   const handleAddNote = async (newNote) => {
     try {
+      const payload = {
+        title: newNote.title,
+        content: newNote.content,
+        color: newNote.color || '#ffffff',
+        pinned: newNote.pinned || false
+      };
       const response = await fetch(NOTES_API_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newNote)
+        body: JSON.stringify(payload)
       });
-      
-      if (!response.ok) throw new Error('Failed to add note');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to add note');
+      }
       fetchNotes();
-      
-      // Show success modal
       setModalContent({
         title: 'Note Added',
         message: 'Your note has been saved successfully',
@@ -65,11 +80,13 @@ export default function MainContent() {
 
   const handleDeleteNote = async (id) => {
     try {
-      const response = await fetch(`${NOTES_API_ENDPOINT}/${id}`, {
+      const response = await fetch(`${NOTES_API_ENDPOINT}?id=${id}`, {
         method: 'DELETE'
       });
-      
-      if (!response.ok) throw new Error('Failed to delete note');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete note');
+      }
       fetchNotes();
     } catch (err) {
       setModalContent({
@@ -83,13 +100,15 @@ export default function MainContent() {
 
   const handleUpdateNote = async (id, updatedNote) => {
     try {
-      const response = await fetch(`${NOTES_API_ENDPOINT}/${id}`, {
+      const response = await fetch(`${NOTES_API_ENDPOINT}?id=${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedNote)
       });
-      
-      if (!response.ok) throw new Error('Failed to update note');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update note');
+      }
       fetchNotes();
     } catch (err) {
       setModalContent({
@@ -104,8 +123,8 @@ export default function MainContent() {
   return (
     <div className={`flex flex-col min-h-screen ${
       darkMode 
-        ? 'bg-[#202124] text-gray-100'  // Google Keep dark background
-        : 'bg-[#fff] text-gray-800'      // Google Keep light background
+        ? 'bg-[#202124] text-gray-100'
+        : 'bg-[#fff] text-gray-800'
     } font-sans transition-colors duration-200`}>
       <main className="flex-grow container mx-auto p-4 sm:p-6 lg:p-8">
         <CreateArea onAdd={handleAddNote} darkMode={darkMode} />
@@ -124,8 +143,8 @@ export default function MainContent() {
         {error && !isLoading && (
           <div className={`${
             darkMode 
-              ? 'bg-[#41331C] border-amber-700 text-amber-200'  // Google Keep dark error
-              : 'bg-red-100 border-red-500 text-red-700'         // Light error
+              ? 'bg-[#41331C] border-amber-700 text-amber-200'
+              : 'bg-red-100 border-red-500 text-red-700'
           } border-l-4 p-4 rounded-md shadow-md mb-6`} role="alert">
             <div className="flex">
               <div className="py-1">

@@ -3,6 +3,23 @@
 @tailwind utilities;
 
 body {
+  @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-200;
+}
+
+/* Add Google Keep-like colors */
+.dark {
+  --color-primary: #202124;
+  --color-secondary: #303134;
+  --color-accent: #41331C;
+}
+
+.light {
+  --color-primary: #ffffff;
+  --color-secondary: #f1f3f4;
+  --color-accent: #FEEFC3;
+}
+
+body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',

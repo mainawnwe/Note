@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { 
   Menu, RefreshCw, Grid, List, Settings, User, 
   Edit3, Archive, Trash2, Tag, Clock, FileText, 
@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import SearchBar from './Search';
 import DetailedSettingsPanel from './DetailedSettingsPanel';
+import { useTheme } from '../context/ThemeContext';
 
 export default function Header({ 
   allLabels = [], 
@@ -15,11 +16,11 @@ export default function Header({
   isGridView = true,
   user = { name: "User", email: "user@example.com" }
 }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [showDetailedSettings, setShowDetailedSettings] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  const { darkMode, toggleDarkMode } = useTheme();
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [showDetailedSettings, setShowDetailedSettings] = React.useState(false);
+  const [profileOpen, setProfileOpen] = React.useState(false);
   const menuRef = useRef(null);
   const settingsRef = useRef(null);
   const profileRef = useRef(null);
@@ -29,7 +30,6 @@ export default function Header({
   const toggleMenu = () => setMenuOpen(!menuOpen);
   const toggleSettings = () => setSettingsOpen(prev => !prev);
   const toggleProfile = () => setProfileOpen(!profileOpen);
-  const toggleDarkMode = () => setDarkMode(!darkMode);
 
   // Menu structure for dynamic rendering
   const menuItems = [
@@ -88,31 +88,6 @@ export default function Header({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  // Toggle dark mode globally
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-      document.body.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      document.body.classList.remove('dark');
-    }
-  }, [darkMode]);
-
-  // Sync darkMode state with localStorage to persist theme preference
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
-      setDarkMode(true);
-    } else if (savedTheme === 'light') {
-      setDarkMode(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('theme', darkMode ? 'dark' : 'light');
-  }, [darkMode]);
 
   return (
     <>
