@@ -99,7 +99,7 @@ function handlePost($pdo) {
     $title = $data['title'] ?? '';
     $content = $data['content'] ?? '';
     $color = $data['color'] ?? '#ffffff';
-    $pinned = isset($_POST['pinned']) ? 1 : 0;
+    $pinned = isset($data['pinned']) && $data['pinned'] ? 1 : 0;
 
     $labels = $data['labels'] ?? '';
     $image_url = $data['image_url'] ?? '';
