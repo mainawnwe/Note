@@ -1,7 +1,8 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Clock, User, Image, Archive, MoreHorizontal, Tag, CheckSquare, Copy, X, Edit3, Undo, Redo, Type, TypeH1, TypeH2, Bold, Italic, Underline, Slash } from 'lucide-react';
 
-export default function CreateArea({ onAdd }) {
+export default function CreateArea({ onAdd, darkMode }) {
   const [note, setNote] = useState({ title: '', content: '', color: '#ffffff', pinned: false });
   const [isExpanded, setIsExpanded] = useState(false);
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
@@ -130,7 +131,13 @@ export default function CreateArea({ onAdd }) {
 
   return (
     <div className="my-6 max-w-xl mx-auto">
-      <form onSubmit={submitNote} className="bg-white p-4 rounded-lg shadow-lg transition-all duration-300 ease-in-out" style={{ backgroundColor: note.color }}>
+      <form
+        onSubmit={submitNote}
+        className={`p-4 rounded-lg shadow-lg transition-all duration-300 ease-in-out ${
+          darkMode ? 'bg-gray-900' : 'bg-white'
+        }`}
+        style={{ backgroundColor: note.color }}
+      >
         {isExpanded && (
           <div className="flex justify-between items-center mb-2">
             <input
@@ -138,9 +145,11 @@ export default function CreateArea({ onAdd }) {
               onChange={handleChange}
               value={note.title}
               placeholder="Title"
-              className={`flex-grow p-2 text-lg font-semibold border-b border-slate-300 focus:outline-none focus:border-amber-500 transition-colors ${
+              className={`flex-grow p-2 text-lg font-semibold border-b focus:outline-none focus:border-amber-500 transition-colors ${
                 formatting.bold ? 'font-bold' : ''
-              } ${formatting.italic ? 'italic' : ''} ${formatting.underline ? 'underline' : ''}`}
+              } ${formatting.italic ? 'italic' : ''} ${formatting.underline ? 'underline' : ''} ${
+                darkMode ? 'bg-gray-800 text-white border-gray-600' : 'text-black border-slate-300'
+              }`}
               style={{
                 fontSize: formatting.heading1 ? '1.5rem' : formatting.heading2 ? '1.25rem' : '1.125rem',
               }}
@@ -170,9 +179,11 @@ export default function CreateArea({ onAdd }) {
           value={note.content}
           placeholder="Take a note..."
           rows={isExpanded ? 3 : 1}
-          className={`w-full p-2 text-slate-700 border-b border-slate-300 focus:outline-none focus:border-amber-500 resize-none transition-all duration-200 ${
+          className={`w-full p-2 border-b focus:outline-none focus:border-amber-500 resize-none transition-all duration-200 ${
             formatting.bold ? 'font-bold' : ''
-          } ${formatting.italic ? 'italic' : ''} ${formatting.underline ? 'underline' : ''}`}
+          } ${formatting.italic ? 'italic' : ''} ${formatting.underline ? 'underline' : ''} ${
+            darkMode ? 'bg-gray-800 text-white border-gray-600' : 'text-slate-700 border-slate-300'
+          }`}
           style={{
             fontSize: formatting.heading1 ? '1.25rem' : formatting.heading2 ? '1.125rem' : '1rem',
           }}
