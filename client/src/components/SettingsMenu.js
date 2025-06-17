@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Settings, Sun, Moon, HelpCircle, Info, Download, Keyboard } from 'react-feather';
+import { useNavigate } from 'react-router-dom';
+import { Settings, Sun, Moon, HelpCircle, Info, Key } from 'react-feather';
 import DetailedSettingsPanel from './DetailedSettingsPanel';
 import FeedbackModal from './FeedbackModal';
-import AppDownloadsModal from './AppDownloadsModal';
 import KeyboardShortcutsModal from './KeyboardShortcutsModal';
 import HelpModal from './HelpModal';
 
@@ -26,7 +26,6 @@ export default function SettingsMenu({
 
   // Modal open states
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
-  const [isAppDownloadsOpen, setIsAppDownloadsOpen] = useState(false);
   const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
@@ -50,43 +49,39 @@ export default function SettingsMenu({
       <div className="relative">
         <button
           onClick={toggleSettings}
-          className={`p-2 rounded-lg transition-all duration-200 ${
-            darkMode 
-              ? 'hover:bg-gray-800/80 text-gray-300' 
-              : 'hover:bg-amber-100 text-gray-700'
-          } ${settingsOpen ? (darkMode ? 'bg-gray-800/80' : 'bg-amber-100') : ''}`}
+          className={`p-2 rounded-lg transition-all duration-200 ${darkMode
+            ? 'hover:bg-gray-800/80 text-gray-300'
+            : 'hover:bg-amber-100 text-gray-700'
+            } ${settingsOpen ? (darkMode ? 'bg-gray-800/80' : 'bg-amber-100') : ''}`}
           aria-label="Settings"
           aria-expanded={settingsOpen}
         >
           <Settings className="h-5 w-5" />
         </button>
-        
+
         {settingsOpen && (
           <div
             ref={settingsRef}
-            className={`absolute top-full right-0 mt-2 w-56 rounded-xl shadow-xl z-50 overflow-hidden transition-all duration-200 origin-top ${
-              darkMode 
-                ? 'bg-gray-800 border border-gray-700 shadow-gray-900/50' 
-                : 'bg-white border border-gray-200 shadow-gray-400/30'
-            }`}
+            className={`absolute top-full right-0 mt-2 w-56 rounded-xl shadow-xl z-50 overflow-hidden transition-all duration-200 origin-top ${darkMode
+              ? 'bg-gray-800 border border-gray-700 shadow-gray-900/50'
+              : 'bg-white border border-gray-200 shadow-gray-400/30'
+              }`}
           >
             <div className="py-2">
-              <button 
-                className={`flex items-center w-full px-4 py-3 transition-colors duration-150 ${
-                  darkMode ? 'hover:bg-gray-700/50 text-gray-300' : 'hover:bg-amber-50 text-gray-700'
-                }`}
-                onClick={() => { 
-                  setSettingsOpen(false); 
-                  setShowDetailedSettings(true); 
+              <button
+                className={`flex items-center w-full px-4 py-3 transition-colors duration-150 ${darkMode ? 'hover:bg-gray-700/50 text-gray-300' : 'hover:bg-amber-50 text-gray-700'
+                  }`}
+                onClick={() => {
+                  setSettingsOpen(false);
+                  setShowDetailedSettings(true);
                 }}
               >
                 <Settings className="h-5 w-5 mr-3 flex-shrink-0" />
                 <span className="font-medium">Settings</span>
               </button>
               <button
-                className={`flex items-center w-full px-4 py-3 transition-colors duration-150 ${
-                  darkMode ? 'hover:bg-gray-700/50 text-gray-300' : 'hover:bg-amber-50 text-gray-700'
-                }`}
+                className={`flex items-center w-full px-4 py-3 transition-colors duration-150 ${darkMode ? 'hover:bg-gray-700/50 text-gray-300' : 'hover:bg-amber-50 text-gray-700'
+                  }`}
                 onClick={toggleDarkMode}
               >
                 {darkMode ? (
@@ -96,10 +91,9 @@ export default function SettingsMenu({
                 )}
                 <span className="font-medium">{darkMode ? 'Disable dark theme' : 'Enable dark theme'}</span>
               </button>
-              <button 
-                className={`flex items-center w-full px-4 py-3 transition-colors duration-150 ${
-                  darkMode ? 'hover:bg-gray-700/50 text-gray-300' : 'hover:bg-amber-50 text-gray-700'
-                }`}
+              <button
+                className={`flex items-center w-full px-4 py-3 transition-colors duration-150 ${darkMode ? 'hover:bg-gray-700/50 text-gray-300' : 'hover:bg-amber-50 text-gray-700'
+                  }`}
                 onClick={() => {
                   setSettingsOpen(false);
                   setIsFeedbackOpen(true);
@@ -109,9 +103,8 @@ export default function SettingsMenu({
                 <span className="font-medium">Send Feedback</span>
               </button>
               <button
-                className={`flex items-center w-full px-4 py-3 transition-colors duration-150 ${
-                  darkMode ? 'hover:bg-gray-700/50 text-gray-300' : 'hover:bg-amber-50 text-gray-700'
-                }`}
+                className={`flex items-center w-full px-4 py-3 transition-colors duration-150 ${darkMode ? 'hover:bg-gray-700/50 text-gray-300' : 'hover:bg-amber-50 text-gray-700'
+                  }`}
                 onClick={() => {
                   setSettingsOpen(false);
                   setIsHelpOpen(true);
@@ -121,27 +114,14 @@ export default function SettingsMenu({
                 <span className="font-medium">Help</span>
               </button>
               <button
-                className={`flex items-center w-full px-4 py-3 transition-colors duration-150 ${
-                  darkMode ? 'hover:bg-gray-700/50 text-gray-300' : 'hover:bg-amber-50 text-gray-700'
-                }`}
-                onClick={() => {
-                  setSettingsOpen(false);
-                  setIsAppDownloadsOpen(true);
-                }}
-              >
-                <Download className="h-5 w-5 mr-3 flex-shrink-0" />
-                <span className="font-medium">App downloads</span>
-              </button>
-              <button
-                className={`flex items-center w-full px-4 py-3 transition-colors duration-150 ${
-                  darkMode ? 'hover:bg-gray-700/50 text-gray-300' : 'hover:bg-amber-50 text-gray-700'
-                }`}
+                className={`flex items-center w-full px-4 py-3 transition-colors duration-150 ${darkMode ? 'hover:bg-gray-700/50 text-gray-300' : 'hover:bg-amber-50 text-gray-700'
+                  }`}
                 onClick={() => {
                   setSettingsOpen(false);
                   setIsKeyboardShortcutsOpen(true);
                 }}
               >
-                <Keyboard className="h-5 w-5 mr-3 flex-shrink-0" />
+                <Key className="h-5 w-5 mr-3 flex-shrink-0" />
                 <span className="font-medium">Keyboard shortcuts</span>
               </button>
             </div>
@@ -171,8 +151,8 @@ export default function SettingsMenu({
       )}
 
       <FeedbackModal isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} />
-      <AppDownloadsModal isOpen={isAppDownloadsOpen} onClose={() => setIsAppDownloadsOpen(false)} />
       <KeyboardShortcutsModal isOpen={isKeyboardShortcutsOpen} onClose={() => setIsKeyboardShortcutsOpen(false)} />
       <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
     </>
   );
+}
