@@ -1,0 +1,58 @@
+client/
+├── .gitignore
+├── package.json
+├── README.md
+├── tailwind.config.js
+├── public/
+│   ├── favicon.ico
+│   ├── index.html
+│   ├── logo192.png
+│   ├── logo512.png
+│   ├── manifest.json
+│   └── robots.txt
+└── src/
+    ├── App.css
+    ├── App.js
+    ├── App.test.js
+    ├── index.css
+    ├── index.js
+    ├── logo.svg
+    ├── reportWebVitals.js
+    ├── setupTests.js
+    ├── assets/
+    │   └── note-edit-svgrepo-com.svg
+    ├── components/
+    │   ├── AppDownloads.js
+    │   ├── CreateArea.js
+    │   ├── DetailedSettingsPanel.js
+    │   ├── FeedbackModal.js
+    │   ├── Footer.js
+    │   ├── Header.js
+    │   ├── MainContent.js
+    │   ├── Modal.js
+    │   ├── Note.js
+    │   ├── Search.js
+    │   └── auth/
+    │       ├── AuthRoute.js
+    │       ├── Login.js
+    │       └── Signup.js
+    └── context/
+        ├── AuthContext.js
+        └── ThemeContext.js
+
+server/
+├── api/
+│   ├── auth/
+│   │   ├── login.php
+│   │   ├── profile.php
+│   │   └── signup.php
+│   ├── index.php          # Main API entry point handling notes CRUD operations
+│   ├── search.php         # API endpoint for search functionality
+│   └── test.php           # Test API endpoint
+├── db/
+│   ├── auth/
+│   │   └── users.sql
+│   ├── db-connection.php  # Database connection setup
+│   └── test_db.php        # Test database script
+└── lib/
+    └── auth.php

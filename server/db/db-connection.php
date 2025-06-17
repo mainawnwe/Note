@@ -12,9 +12,20 @@ $options = [
     PDO::ATTR_EMULATE_PREPARES   => false,
 ];
 
-try {
-    $pdo = new PDO($dsn, $user, $pass, $options);
-} catch (\PDOException $e) {
-    throw new \PDOException($e->getMessage(), (int)$e->getCode());
+function getDbConnection() {
+    global $dsn, $user, $pass, $options;
+    static $pdo = null;
+    
+    if ($pdo === null) {
+        try {
+            $pdo = new PDO($dsn, $user, $pass, $options);
+        } catch (\PDOException $e) {
+            throw new \PDOException($e->getMessage(), (int)$e->getCode());
+        }
+    }
+    return $pdo;
 }
+
+// For backward compatibility
+$pdo = getDbConnection();
 ?>

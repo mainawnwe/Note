@@ -1,78 +1,46 @@
-
 import React, { useState, useRef, useEffect } from 'react';
-import { Clock, User, Image, Archive, MoreHorizontal, Tag, CheckSquare, Copy, X, Edit3, Undo, Redo, Type, TypeH1, TypeH2, Bold, Italic, Underline, Slash } from 'lucide-react';
+import { 
+  Clock, 
+  User, 
+  Image, 
+  Archive, 
+  MoreHorizontal, 
+  Tag, 
+  CheckSquare, 
+  Copy, 
+  X, 
+  Pin, 
+  ChevronDown, 
+  Send,
+  Bold,
+  Italic,
+  Underline,
+  Type
+} from 'lucide-react';
 
 export default function CreateArea({ onAdd, darkMode }) {
-  const [note, setNote] = useState({ title: '', content: '', color: '#ffffff', pinned: false });
+  const [note, setNote] = useState({ 
+    title: '', 
+    content: '', 
+    color: darkMode ? '#1e293b' : '#ffffff', 
+    pinned: false 
+  });
   const [isExpanded, setIsExpanded] = useState(false);
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
   const [formatting, setFormatting] = useState({
-    heading1: false,
-    heading2: false,
-    normal: true,
     bold: false,
     italic: false,
     underline: false,
   });
-  const [undoStack, setUndoStack] = useState([]);
-  const [redoStack, setRedoStack] = useState([]);
   const moreOptionsRef = useRef(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    saveUndo();
     setNote(prevNote => ({ ...prevNote, [name]: value }));
   };
 
-  const saveUndo = () => {
-    setUndoStack(prev => [...prev, note]);
-    setRedoStack([]);
-  };
-
-  const undo = () => {
-    if (undoStack.length === 0) return;
-    const prev = undoStack[undoStack.length - 1];
-    setUndoStack(undoStack.slice(0, -1));
-    setRedoStack(prevRedo => [...prevRedo, note]);
-    setNote(prev);
-  };
-
-  const redo = () => {
-    if (redoStack.length === 0) return;
-    const next = redoStack[redoStack.length - 1];
-    setRedoStack(redoStack.slice(0, -1));
-    setUndoStack(prevUndo => [...prevUndo, note]);
-    setNote(next);
-  };
-
   const toggleFormatting = (type) => {
-    setFormatting(prev => {
-      const newFormatting = { ...prev };
-      if (type === 'heading1') {
-        newFormatting.heading1 = !prev.heading1;
-        if (newFormatting.heading1) {
-          newFormatting.heading2 = false;
-          newFormatting.normal = false;
-        } else {
-          newFormatting.normal = true;
-        }
-      } else if (type === 'heading2') {
-        newFormatting.heading2 = !prev.heading2;
-        if (newFormatting.heading2) {
-          newFormatting.heading1 = false;
-          newFormatting.normal = false;
-        } else {
-          newFormatting.normal = true;
-        }
-      } else if (type === 'normal') {
-        newFormatting.normal = true;
-        newFormatting.heading1 = false;
-        newFormatting.heading2 = false;
-      } else {
-        newFormatting[type] = !prev[type];
-      }
-      return newFormatting;
-    });
+    setFormatting(prev => ({ ...prev, [type]: !prev[type] }));
   };
 
   const togglePin = () => {
@@ -87,19 +55,14 @@ export default function CreateArea({ onAdd, darkMode }) {
     e.preventDefault();
     if (note.title.trim() === '' && note.content.trim() === '') return;
     onAdd({ ...note });
-    setNote({ title: '', content: '', color: '#ffffff', pinned: false });
+    setNote({ 
+      title: '', 
+      content: '', 
+      color: darkMode ? '#1e293b' : '#ffffff', 
+      pinned: false 
+    });
     setIsExpanded(false);
     setMoreOptionsOpen(false);
-    setFormatting({
-      heading1: false,
-      heading2: false,
-      normal: true,
-      bold: false,
-      italic: false,
-      underline: false,
-    });
-    setUndoStack([]);
-    setRedoStack([]);
   };
 
   const handleFocus = () => {
@@ -127,188 +90,240 @@ export default function CreateArea({ onAdd, darkMode }) {
     };
   }, [moreOptionsOpen]);
 
-  const colors = ['#ffffff', '#f28b82', '#fbbc04', '#fff475', '#ccff90', '#a7ffeb', '#cbf0f8', '#aecbfa', '#d7aefb'];
+  const colors = [
+    { bg: darkMode ? '#1e293b' : '#ffffff', border: darkMode ? '#334155' : '#e2e8f0' },
+    { bg: '#fecaca', border: '#fca5a5' },
+    { bg: '#fed7aa', border: '#fdba74' },
+    { bg: '#fef08a', border: '#fde047' },
+    { bg: '#d9f99d', border: '#bef264' },
+    { bg: '#a7f3d0', border: '#6ee7b7' },
+    { bg: '#bae6fd', border: '#7dd3fc' },
+    { bg: '#c7d2fe', border: '#a5b4fc' },
+    { bg: '#e9d5ff', border: '#d8b4fe' },
+  ];
 
   return (
-    <div className="my-6 max-w-xl mx-auto">
+    <div className="my-8 max-w-2xl mx-auto transition-all duration-300">
       <form
         onSubmit={submitNote}
-        className={`p-4 rounded-lg shadow-lg transition-all duration-300 ease-in-out ${
-          darkMode ? 'bg-gray-900' : 'bg-white'
-        }`}
-        style={{ backgroundColor: note.color }}
+        className={`
+          p-4 rounded-xl shadow-xl transition-all duration-300 ease-in-out 
+          ${darkMode ? 'border border-gray-700' : 'border border-gray-200'}
+          ${isExpanded ? 'scale-100' : 'scale-95 hover:scale-100'}
+        `}
+        style={{ 
+          backgroundColor: note.color,
+          boxShadow: isExpanded ? 
+            (darkMode ? '0 10px 25px -5px rgba(0, 0, 0, 0.5)' : '0 10px 25px -5px rgba(0, 0, 0, 0.1)') : 'none'
+        }}
       >
         {isExpanded && (
-          <div className="flex justify-between items-center mb-2">
+          <div className="flex justify-between items-center mb-3">
             <input
               name="title"
               onChange={handleChange}
               value={note.title}
               placeholder="Title"
-              className={`flex-grow p-2 text-lg font-semibold border-b focus:outline-none focus:border-amber-500 transition-colors ${
-                formatting.bold ? 'font-bold' : ''
-              } ${formatting.italic ? 'italic' : ''} ${formatting.underline ? 'underline' : ''} ${
-                darkMode ? 'bg-gray-800 text-white border-gray-600' : 'text-black border-slate-300'
-              }`}
-              style={{
-                fontSize: formatting.heading1 ? '1.5rem' : formatting.heading2 ? '1.25rem' : '1.125rem',
-              }}
+              className={`
+                flex-grow p-2 text-xl font-semibold focus:outline-none rounded-lg
+                ${formatting.bold ? 'font-bold' : ''} 
+                ${formatting.italic ? 'italic' : ''} 
+                ${formatting.underline ? 'underline' : ''}
+                ${darkMode ? 'bg-gray-800/50 text-white placeholder-gray-400' : 'bg-white/50 text-gray-800 placeholder-gray-500'}
+              `}
             />
             <button
               type="button"
-              aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
               onClick={togglePin}
-              className="ml-2 p-1 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              className={`
+                ml-3 p-2 rounded-full transition-all
+                ${note.pinned ? 'text-amber-500 bg-amber-500/10' : 'text-gray-400 hover:bg-gray-200/50'}
+                ${darkMode && !note.pinned ? 'hover:bg-gray-700' : ''}
+              `}
+              aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className={`h-6 w-6 ${note.pinned ? 'text-yellow-500' : 'text-gray-400'}`}
-                fill="currentColor"
-                viewBox="0 0 24 24"
-                stroke="none"
-              >
-                <path d="M12 2C10.895 2 10 2.895 10 4v5H7v2h3v5c0 1.105.895 2 2 2s2-.895 2-2v-5h3v-2h-3V4c0-1.105-.895-2-2-2z" />
-              </svg>
+              <Pin className="h-5 w-5" />
             </button>
           </div>
         )}
+        
         <textarea
           name="content"
           onFocus={handleFocus}
           onChange={handleChange}
           value={note.content}
-          placeholder="Take a note..."
-          rows={isExpanded ? 3 : 1}
-          className={`w-full p-2 border-b focus:outline-none focus:border-amber-500 resize-none transition-all duration-200 ${
-            formatting.bold ? 'font-bold' : ''
-          } ${formatting.italic ? 'italic' : ''} ${formatting.underline ? 'underline' : ''} ${
-            darkMode ? 'bg-gray-800 text-white border-gray-600' : 'text-slate-700 border-slate-300'
-          }`}
-          style={{
-            fontSize: formatting.heading1 ? '1.25rem' : formatting.heading2 ? '1.125rem' : '1rem',
-          }}
-          required={!note.title && isExpanded}
+          placeholder={isExpanded ? "Start writing..." : "Take a note..."}
+          rows={isExpanded ? 4 : 1}
+          className={`
+            w-full p-3 focus:outline-none rounded-lg transition-all
+            ${formatting.bold ? 'font-bold' : ''} 
+            ${formatting.italic ? 'italic' : ''} 
+            ${formatting.underline ? 'underline' : ''}
+            ${darkMode ? 'bg-gray-800/50 text-white placeholder-gray-400' : 'bg-white/50 text-gray-800 placeholder-gray-500'}
+          `}
         />
+        
         {isExpanded && (
-          <>
-            <div className="flex space-x-2 my-2">
-              {colors.map(color => (
+          <div className="mt-4">
+            <div className="flex flex-wrap gap-2 mb-4">
+              {colors.map((color, index) => (
                 <button
-                  key={color}
+                  key={index}
                   type="button"
-                  onClick={() => handleColorChange(color)}
-                  className={`w-6 h-6 rounded-full border-2 ${note.color === color ? 'border-black' : 'border-transparent'}`}
-                  style={{ backgroundColor: color }}
-                  aria-label={`Select color ${color}`}
+                  onClick={() => handleColorChange(color.bg)}
+                  className={`
+                    w-8 h-8 rounded-full border-2 transition-transform
+                    ${note.color === color.bg ? 'scale-110 ring-2 ring-offset-2 ring-blue-500' : 'scale-100 hover:scale-110'}
+                  `}
+                  style={{ 
+                    backgroundColor: color.bg,
+                    borderColor: color.border
+                  }}
+                  aria-label={`Select color ${color.bg}`}
                 />
               ))}
             </div>
-            <div className="flex justify-between mt-3 items-center">
-              <div className="flex space-x-3">
+            
+            <div className="flex justify-between items-center pt-2 border-t border-gray-200/50">
+              <div className="flex space-x-2">
+                {/* Formatting buttons */}
                 <button
                   type="button"
-                  aria-label="Reminder"
-                  className="p-1 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  onClick={() => alert('Reminder clicked - implement feature')}
+                  onClick={() => toggleFormatting('bold')}
+                  className={`
+                    p-2 rounded-lg transition-colors
+                    ${formatting.bold ? 'bg-blue-500/10 text-blue-500' : 'text-gray-500 hover:bg-gray-200/50'}
+                    ${darkMode && !formatting.bold ? 'hover:bg-gray-700' : ''}
+                  `}
+                  aria-label="Bold"
                 >
-                  <Clock className="h-5 w-5 text-gray-600" />
+                  <Bold className="h-5 w-5" />
                 </button>
                 <button
                   type="button"
-                  aria-label="Collaborator"
-                  className="p-1 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  onClick={() => alert('Collaborator clicked - implement feature')}
+                  onClick={() => toggleFormatting('italic')}
+                  className={`
+                    p-2 rounded-lg transition-colors
+                    ${formatting.italic ? 'bg-blue-500/10 text-blue-500' : 'text-gray-500 hover:bg-gray-200/50'}
+                    ${darkMode && !formatting.italic ? 'hover:bg-gray-700' : ''}
+                  `}
+                  aria-label="Italic"
                 >
-                  <User className="h-5 w-5 text-gray-600" />
+                  <Italic className="h-5 w-5" />
                 </button>
                 <button
                   type="button"
-                  aria-label="Add Image"
-                  className="p-1 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  onClick={() => alert('Add Image clicked - implement feature')}
+                  onClick={() => toggleFormatting('underline')}
+                  className={`
+                    p-2 rounded-lg transition-colors
+                    ${formatting.underline ? 'bg-blue-500/10 text-blue-500' : 'text-gray-500 hover:bg-gray-200/50'}
+                    ${darkMode && !formatting.underline ? 'hover:bg-gray-700' : ''}
+                  `}
+                  aria-label="Underline"
                 >
-                  <Image className="h-5 w-5 text-gray-600" />
+                  <Underline className="h-5 w-5" />
                 </button>
-                <button
-                  type="button"
-                  aria-label="Archive"
-                  className="p-1 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  onClick={() => alert('Archive clicked - implement feature')}
-                >
-                  <Archive className="h-5 w-5 text-gray-600" />
-                </button>
+                
+                {/* More options dropdown */}
                 <div className="relative" ref={moreOptionsRef}>
                   <button
                     type="button"
-                    aria-label="More options"
-                    className="p-1 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
                     onClick={toggleMoreOptions}
+                    className={`
+                      p-2 rounded-lg flex items-center transition-colors
+                      ${moreOptionsOpen ? 'bg-blue-500/10 text-blue-500' : 'text-gray-500 hover:bg-gray-200/50'}
+                      ${darkMode && !moreOptionsOpen ? 'hover:bg-gray-700' : ''}
+                    `}
+                    aria-label="More options"
                   >
-                    <MoreHorizontal className="h-5 w-5 text-gray-600" />
+                    <MoreHorizontal className="h-5 w-5" />
+                    <ChevronDown className={`h-4 w-4 ml-1 transition-transform ${moreOptionsOpen ? 'rotate-180' : ''}`} />
                   </button>
+                  
                   {moreOptionsOpen && (
-                    <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-300 rounded-md shadow-lg z-50">
+                    <div className={`
+                      absolute bottom-full mb-2 left-0 w-56 bg-white rounded-lg shadow-lg z-50
+                      ${darkMode ? 'bg-gray-800 border border-gray-700' : 'border border-gray-200'}
+                    `}>
                       <button
                         type="button"
-                        className="w-full text-left px-4 py-2 hover:bg-gray-100 focus:outline-none"
-                        onClick={() => alert('Add Label clicked - implement feature')}
+                        className={`
+                          w-full text-left px-4 py-2 flex items-center hover:bg-gray-100
+                          ${darkMode ? 'hover:bg-gray-700' : ''}
+                        `}
+                        onClick={() => alert('Reminder')}
                       >
-                        <Tag className="inline-block mr-2 h-5 w-5 text-gray-600" />
-                        Add Label
+                        <Clock className="mr-3 h-5 w-5 text-gray-500" />
+                        <span>Reminder</span>
                       </button>
                       <button
                         type="button"
-                        className="w-full text-left px-4 py-2 hover:bg-gray-100 focus:outline-none"
-                        onClick={() => alert('Add Drawing clicked - implement feature')}
+                        className={`
+                          w-full text-left px-4 py-2 flex items-center hover:bg-gray-100
+                          ${darkMode ? 'hover:bg-gray-700' : ''}
+                        `}
+                        onClick={() => alert('Collaborator')}
                       >
-                        <svg className="inline-block mr-2 h-5 w-5 text-gray-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M12 20h9" />
-                          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
-                        </svg>
-                        Add Drawing
+                        <User className="mr-3 h-5 w-5 text-gray-500" />
+                        <span>Collaborator</span>
                       </button>
                       <button
                         type="button"
-                        className="w-full text-left px-4 py-2 hover:bg-gray-100 focus:outline-none"
-                        onClick={() => alert('Add Checkbox clicked - implement feature')}
+                        className={`
+                          w-full text-left px-4 py-2 flex items-center hover:bg-gray-100
+                          ${darkMode ? 'hover:bg-gray-700' : ''}
+                        `}
+                        onClick={() => alert('Add Image')}
                       >
-                        <CheckSquare className="inline-block mr-2 h-5 w-5 text-gray-600" />
-                        Add Checkbox
+                        <Image className="mr-3 h-5 w-5 text-gray-500" />
+                        <span>Add Image</span>
                       </button>
                       <button
                         type="button"
-                        className="w-full text-left px-4 py-2 hover:bg-gray-100 focus:outline-none"
-                        onClick={() => alert('Make a Copy clicked - implement feature')}
+                        className={`
+                          w-full text-left px-4 py-2 flex items-center hover:bg-gray-100
+                          ${darkMode ? 'hover:bg-gray-700' : ''}
+                        `}
+                        onClick={() => alert('Add Checkbox')}
                       >
-                        <Copy className="inline-block mr-2 h-5 w-5 text-gray-600" />
-                        Make a Copy
+                        <CheckSquare className="mr-3 h-5 w-5 text-gray-500" />
+                        <span>Add Checkbox</span>
                       </button>
                     </div>
                   )}
                 </div>
               </div>
-              <button
-                type="button"
-                aria-label="Close note input"
-                className="p-1 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                onClick={() => {
-                  setIsExpanded(false);
-                  setMoreOptionsOpen(false);
-                }}
-              >
-                <X className="h-5 w-5 text-gray-600" />
-              </button>
-              <button
-                type="submit"
-                className="bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2 px-5 rounded-md shadow-md transition-colors duration-150 flex items-center"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="mr-1 h-5 w-5" fill="currentColor" viewBox="0 0 24 24" stroke="none">
-                  <path d="M12 2C10.895 2 10 2.895 10 4v5H7v2h3v5c0 1.105.895 2 2 2s2-.895 2-2v-5h3v-2h-3V4c0-1.105-.895-2-2-2z" />
-                </svg>
-                Add
-              </button>
+              
+              <div className="flex space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setIsExpanded(false)}
+                  className={`
+                    p-2 rounded-lg transition-colors text-gray-500 hover:bg-gray-200/50
+                    ${darkMode ? 'hover:bg-gray-700' : ''}
+                  `}
+                  aria-label="Close"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+                <button
+                  type="submit"
+                  disabled={!note.title && !note.content}
+                  className={`
+                    px-4 py-2 rounded-lg flex items-center space-x-2 transition-all
+                    ${note.title || note.content ? 
+                      'bg-blue-500 hover:bg-blue-600 text-white' : 
+                      'bg-gray-200 text-gray-400 cursor-not-allowed'}
+                    ${darkMode && !(note.title || note.content) ? 'bg-gray-700' : ''}
+                  `}
+                  aria-label="Add note"
+                >
+                  <Send className="h-5 w-5" />
+                  <span>Add</span>
+                </button>
+              </div>
             </div>
-          </>
+          </div>
         )}
       </form>
     </div>
