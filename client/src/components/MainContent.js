@@ -9,7 +9,7 @@ import Header from './Header';
 
 const NOTES_API_ENDPOINT = 'http://localhost:8000';
 
-export default function MainContent({ isGridView }) {
+export default function MainContent({ isGridView, searchTerm, selectedCategory }) {
   const { darkMode } = useTheme();
 
   const [notes, setNotes] = useState([]);
@@ -64,7 +64,12 @@ export default function MainContent({ isGridView }) {
         return b.pinned - a.pinned;
       });
 
-      setNotes(formattedNotes);
+      // Filter notes by selectedCategory if provided
+      const filteredNotes = selectedCategory
+        ? formattedNotes.filter(note => note.category === selectedCategory)
+        : formattedNotes;
+
+      setNotes(filteredNotes);
       setError(null);
     } catch (err) {
       console.error('Fetch error:', err);
@@ -159,8 +164,8 @@ export default function MainContent({ isGridView }) {
 
   return (
     <div className={`flex flex-col min-h-screen ${darkMode
-        ? 'bg-gradient-to-br from-gray-900 to-gray-800 text-gray-100'
-        : 'bg-gradient-to-br from-gray-50 to-gray-100 text-gray-800'
+      ? 'bg-gradient-to-br from-gray-900 to-gray-800 text-gray-100'
+      : 'bg-gradient-to-br from-gray-50 to-gray-100 text-gray-800'
       } font-sans transition-all duration-300`}>
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
         <div className="max-w-6xl mx-auto">
@@ -174,7 +179,7 @@ export default function MainContent({ isGridView }) {
               className={`flex items-center px-3 py-2 rounded-lg transition-all ${darkMode
                 ? 'bg-gray-700 hover:bg-gray-600 text-amber-400'
                 : 'bg-white hover:bg-gray-100 text-blue-600 shadow-sm'
-              } ${isRefreshing ? 'opacity-70 cursor-not-allowed' : ''}`}
+                } ${isRefreshing ? 'opacity-70 cursor-not-allowed' : ''}`}
             >
               <RefreshCw className={`h-5 w-5 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
               Refresh
@@ -193,8 +198,8 @@ export default function MainContent({ isGridView }) {
 
           {error && !isLoading && (
             <div className={`${darkMode
-                ? 'bg-[#41331C] border-amber-700 text-amber-200'
-                : 'bg-red-100 border-red-500 text-red-700'
+              ? 'bg-[#41331C] border-amber-700 text-amber-200'
+              : 'bg-red-100 border-red-500 text-red-700'
               } border-l-4 p-4 rounded-lg shadow-lg mb-8 transition-all hover:scale-[1.01]`}>
               <div className="flex items-start">
                 <div className="flex-shrink-0">

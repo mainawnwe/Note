@@ -1,17 +1,16 @@
 import React, { useState } from 'react';
 
-const Search = ({ onSearch }) => {
-  const [term, setTerm] = useState('');
+const Search = ({ onSearch, searchTerm, setSearchTerm, onFocus, onBlur }) => {
   const [error, setError] = useState(null);
 
   const handleSearch = async () => {
-    if (!term.trim()) {
+    if (!searchTerm.trim()) {
       setError('Please enter a search term.');
       return;
     }
     setError(null);
     try {
-      const response = await fetch(`http://localhost:8000/api/search.php?term=${encodeURIComponent(term)}`);
+      const response = await fetch(`http://localhost:8000/api/search.php?term=${encodeURIComponent(searchTerm)}`);
       if (!response.ok) {
         throw new Error(`HTTP error ${response.status}`);
       }
@@ -27,12 +26,14 @@ const Search = ({ onSearch }) => {
     <div className="mb-4">
       <input
         type="text"
-        value={term}
-        onChange={(e) => setTerm(e.target.value)}
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        onFocus={onFocus}
+        onBlur={onBlur}
         placeholder="Search notes..."
         className="p-2 border rounded"
       />
-      <button 
+      <button
         onClick={handleSearch}
         className="ml-2 p-2 bg-blue-500 text-white rounded"
       >

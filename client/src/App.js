@@ -9,6 +9,7 @@ import Signup from './components/auth/Signup';
 import AuthRoute from './components/auth/AuthRoute';
 import Footer from './components/Footer';
 import AppDownloads from './components/AppDownloads';
+import CategorizedSearch from './components/CategorizedSearch';
 
 function CoolHeader() {
   return (
@@ -23,38 +24,47 @@ function AppContent() {
   const location = useLocation();
   const [isGridView, setIsGridView] = useState(true);
 
+  // New states for search and category
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedNoteType, setSelectedNoteType] = useState('');
+
   const toggleView = () => setIsGridView(prev => !prev);
   const onRefreshNotes = () => {
-    // Implement refresh logic here or leave as no-op
     console.log('Refresh notes triggered');
     setRefreshKey(prev => prev + 1);
   };
   const onMenuClick = (item) => {
-    // Implement menu click logic here or leave as no-op
     console.log('Menu item clicked:', item);
   };
   const onSignOut = () => {
-    // Implement sign out logic here or leave as no-op
     console.log('Sign out triggered');
   };
 
-  // For user, you can get from AuthContext or mock here
   const user = {
     name: 'User',
     email: 'user@example.com'
   };
 
-  // Add refreshKey state to trigger refresh in MainContent
   const [refreshKey, setRefreshKey] = useState(0);
 
   const isAuthPage = location.pathname === '/login' || location.pathname === '/signup';
+
+  const handleCategoryClick = (category) => {
+    setSearchTerm(category);
+    setSelectedCategory(category);
+    setSelectedNoteType(category);
+    setIsSearchFocused(false);
+    console.log('Category clicked:', category);
+  };
 
   return (
     <div className="flex flex-col min-h-screen">
       {isAuthPage ? (
         <CoolHeader />
       ) : (
-        <Header 
+        <Header
           isGridView={isGridView}
           onToggleView={toggleView}
           onRefreshNotes={onRefreshNotes}
@@ -62,21 +72,32 @@ function AppContent() {
           user={user}
           onSignOut={onSignOut}
           allLabels={[]} // Pass actual labels if available
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          isSearchFocused={isSearchFocused}
+          setIsSearchFocused={setIsSearchFocused}
         />
       )}
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
-        <Route 
-          path="/" 
+        <Route
+          path="/"
           element={
             <AuthRoute>
-              <MainContent 
-                key={refreshKey} 
-                isGridView={isGridView} 
-              />
+              {isSearchFocused ? (
+                <CategorizedSearch onCategoryClick={handleCategoryClick} darkMode={false} />
+              ) : (
+                <MainContent
+                  key={refreshKey}
+                  isGridView={isGridView}
+                  searchTerm={searchTerm}
+                  selectedCategory={selectedCategory}
+                  selectedNoteType={selectedNoteType}
+                />
+              )}
             </AuthRoute>
-          } 
+          }
         />
         <Route path="/app-downloads" element={<AppDownloads />} />
       </Routes>
