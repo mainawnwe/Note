@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Trash2, Edit3, Save, XCircle, Pin } from 'lucide-react';
 
 export default function Note(props) {
-  const { id, title, content, createdAt, pinned, color, onDelete, onUpdate, darkMode } = props;
+  const { id, title, content, createdAt, pinned, color, onDelete, onUpdate, darkMode, type, listItems } = props;
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(title);
   const [editedContent, setEditedContent] = useState(content);
@@ -160,9 +160,35 @@ export default function Note(props) {
               <Pin size={18} />
             </button>
           </div>
-          <p className={`text-sm mb-3 whitespace-pre-wrap break-words ${textColor.replace('text-gray-800', 'text-gray-700').replace('text-gray-300', 'text-gray-400')}`}>
-            {content}
-          </p>
+          {type === 'list' && listItems && (
+            <div className="space-y-2">
+              {listItems.filter(item => item.text.trim() !== '').slice(0, 5).map((item) => (
+                <div key={item.id} className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={item.checked || false}
+                    readOnly
+                    className={`mr-2 h-4 w-4 rounded ${
+                      darkMode ? 'text-blue-400 bg-gray-700 border-gray-600' : 'text-blue-500 border-gray-300'
+                    }`}
+                  />
+                  <span className={`${item.checked ? 'line-through text-gray-500' : ''}`}>
+                    {item.text}
+                  </span>
+                </div>
+              ))}
+              {listItems.filter(item => item.text.trim() !== '').length > 5 && (
+                <p className="text-sm text-gray-500 mt-1">
+                  +{listItems.filter(item => item.text.trim() !== '').length - 5} more items
+                </p>
+              )}
+            </div>
+          )}
+          {type !== 'list' && (
+            <p className={`text-sm mb-3 whitespace-pre-wrap break-words ${textColor.replace('text-gray-800', 'text-gray-700').replace('text-gray-300', 'text-gray-400')}`}>
+              {content}
+            </p>
+          )}
           <div className="mt-auto pt-3 border-t border-gray-200 dark:border-gray-700">
             <p className={`text-xs mb-3 ${textColor.replace('text-gray-800', 'text-gray-600').replace('text-gray-300', 'text-gray-500')}`}>
               {formatDate(createdAt)}

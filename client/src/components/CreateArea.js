@@ -27,7 +27,8 @@ export default function CreateArea({ onAdd, darkMode }) {
     content: '',
     color: darkMode ? '#1e293b' : '#ffffff',
     pinned: false,
-    type: 'note' // 'note', 'list', 'image', 'drawing'
+    type: 'note',
+    listItems: [{ id: 1, text: '', checked: false }]
   });
   const [isExpanded, setIsExpanded] = useState(false);
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
@@ -36,12 +37,17 @@ export default function CreateArea({ onAdd, darkMode }) {
     italic: false,
     underline: false,
   });
-  const [listItems, setListItems] = useState([{ id: 1, text: '', checked: false }]);
   const moreOptionsRef = useRef(null);
 
   // Handle different note types
   const handleNoteTypeChange = (type) => {
-    setNote(prev => ({ ...prev, type }));
+    setNote(prev => ({ 
+      ...prev, 
+      type,
+      title: '',
+      content: '',
+      listItems: type === 'list' ? [{ id: 1, text: '', checked: false }] : []
+    }));
     setIsExpanded(true);
   };
 
@@ -64,44 +70,60 @@ export default function CreateArea({ onAdd, darkMode }) {
 
   // List item management
   const addListItem = () => {
-    setListItems([...listItems, { id: Date.now(), text: '', checked: false }]);
+    setNote(prevNote => ({
+      ...prevNote,
+      listItems: [...prevNote.listItems, { id: Date.now(), text: '', checked: false }]
+    }));
   };
 
   const updateListItem = (id, value) => {
-    setListItems(listItems.map(item =>
-      item.id === id ? { ...item, text: value } : item
-    ));
+    setNote(prevNote => ({
+      ...prevNote,
+      listItems: prevNote.listItems.map(item => 
+        item.id === id ? { ...item, text: value } : item
+      )
+    }));
   };
 
   const toggleCheckItem = (id) => {
-    setListItems(listItems.map(item =>
-      item.id === id ? { ...item, checked: !item.checked } : item
-    ));
+    setNote(prevNote => ({
+      ...prevNote,
+      listItems: prevNote.listItems.map(item => 
+        item.id === id ? { ...item, checked: !item.checked } : item
+      )
+    }));
   };
 
   const submitNote = (e) => {
     e.preventDefault();
-
-    // Validate based on note type
-    if (note.type === 'note' && note.title.trim() === '' && note.content.trim() === '') return;
-    if (note.type === 'list' && listItems.every(item => item.text.trim() === '')) return;
-
-    const noteToAdd = {
+    
+    // VALIDATION FIXED HERE: Only require title/content for text notes
+    if (note.type === 'note' && note.title.trim() === '' && note.content.trim() === '') {
+      alert('Title or content required for text notes');
+      return;
+    }
+    
+    // Only require list items for list notes
+    if (note.type === 'list' && note.listItems.every(item => item.text.trim() === '')) {
+      alert('At least one list item is required');
+      return;
+    }
+    
+    onAdd({
       ...note,
-      ...(note.type === 'list' && { listItems })
-    };
-
-    onAdd(noteToAdd);
-
-    // Reset state
-    setNote({
-      title: '',
-      content: '',
-      color: darkMode ? '#1e293b' : '#ffffff',
-      pinned: false,
-      type: 'note'
+      listItems: note.type === 'list' ? note.listItems : null,
+      createdAt: new Date().toISOString()
     });
-    setListItems([{ id: 1, text: '', checked: false }]);
+    
+    // Reset state
+    setNote({ 
+      title: '', 
+      content: '', 
+      color: darkMode ? '#1e293b' : '#ffffff', 
+      pinned: false,
+      type: 'note',
+      listItems: [{ id: 1, text: '', checked: false }]
+    });
     setIsExpanded(false);
     setMoreOptionsOpen(false);
   };
@@ -147,41 +169,45 @@ export default function CreateArea({ onAdd, darkMode }) {
 
   return (
     <div className="my-8 max-w-2xl mx-auto transition-all duration-300">
-      {/* Pre-expand buttons (Google Keep style) */}
+      {/* Google Keep-style note type selection */}
       {!isExpanded && (
         <div className={`flex justify-between items-center p-3 rounded-xl shadow-md mb-3 transition-all
           ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}>
-          <button
+          <button 
             onClick={() => handleNoteTypeChange('note')}
-            className={`flex items-center px-4 py-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
-              }`}
+            className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
+              darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+            }`}
           >
             <Type className="mr-2 h-5 w-5" />
             <span>New Note</span>
           </button>
-
-          <button
+          
+          <button 
             onClick={() => handleNoteTypeChange('list')}
-            className={`flex items-center px-4 py-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
-              }`}
+            className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
+              darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+            }`}
           >
             <List className="mr-2 h-5 w-5" />
             <span>New List</span>
           </button>
-
-          <button
+          
+          <button 
             onClick={() => handleNoteTypeChange('drawing')}
-            className={`flex items-center px-4 py-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
-              }`}
+            className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
+              darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+            }`}
           >
             <PenTool className="mr-2 h-5 w-5" />
             <span>Drawing</span>
           </button>
-
-          <button
+          
+          <button 
             onClick={() => handleNoteTypeChange('image')}
-            className={`flex items-center px-4 py-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
-              }`}
+            className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
+              darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+            }`}
           >
             <Camera className="mr-2 h-5 w-5" />
             <span>Image</span>
@@ -196,9 +222,9 @@ export default function CreateArea({ onAdd, darkMode }) {
           ${darkMode ? 'border border-gray-700' : 'border border-gray-200'}
           ${isExpanded ? 'scale-100' : 'scale-95 hover:scale-100'}
         `}
-        style={{
+        style={{ 
           backgroundColor: note.color,
-          boxShadow: isExpanded ?
+          boxShadow: isExpanded ? 
             (darkMode ? '0 10px 25px -5px rgba(0, 0, 0, 0.5)' : '0 10px 25px -5px rgba(0, 0, 0, 0.1)') : 'none'
         }}
       >
@@ -231,7 +257,7 @@ export default function CreateArea({ onAdd, darkMode }) {
             </button>
           </div>
         )}
-
+        
         {/* Content area - dynamic based on note type */}
         {note.type === 'note' && (
           <textarea
@@ -250,10 +276,10 @@ export default function CreateArea({ onAdd, darkMode }) {
             `}
           />
         )}
-
+        
         {note.type === 'list' && (
           <div className="space-y-2 py-2">
-            {listItems.map((item) => (
+            {note.listItems.map((item) => (
               <div key={item.id} className="flex items-start">
                 <input
                   type="checkbox"
@@ -289,7 +315,7 @@ export default function CreateArea({ onAdd, darkMode }) {
             </button>
           </div>
         )}
-
+        
         {note.type === 'drawing' && (
           <div className="space-y-4">
             <div className={`
@@ -320,7 +346,7 @@ export default function CreateArea({ onAdd, darkMode }) {
             />
           </div>
         )}
-
+        
         {note.type === 'image' && (
           <div className="space-y-4">
             <div className={`
@@ -351,7 +377,7 @@ export default function CreateArea({ onAdd, darkMode }) {
             />
           </div>
         )}
-
+        
         {isExpanded && (
           <div className="mt-4">
             <div className="flex flex-wrap gap-2 mb-4">
@@ -364,7 +390,7 @@ export default function CreateArea({ onAdd, darkMode }) {
                     w-8 h-8 rounded-full border-2 transition-transform
                     ${note.color === color.bg ? 'scale-110 ring-2 ring-offset-2 ring-blue-500' : 'scale-100 hover:scale-110'}
                   `}
-                  style={{
+                  style={{ 
                     backgroundColor: color.bg,
                     borderColor: color.border
                   }}
@@ -372,47 +398,51 @@ export default function CreateArea({ onAdd, darkMode }) {
                 />
               ))}
             </div>
-
+            
             <div className="flex justify-between items-center pt-2 border-t border-gray-200/50">
               <div className="flex space-x-2">
-                {/* Formatting buttons */}
-                <button
-                  type="button"
-                  onClick={() => toggleFormatting('bold')}
-                  className={`
-                    p-2 rounded-lg transition-colors
-                    ${formatting.bold ? 'bg-blue-500/10 text-blue-500' : 'text-gray-500 hover:bg-gray-200/50'}
-                    ${darkMode && !formatting.bold ? 'hover:bg-gray-700' : ''}
-                  `}
-                  aria-label="Bold"
-                >
-                  <Bold className="h-5 w-5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleFormatting('italic')}
-                  className={`
-                    p-2 rounded-lg transition-colors
-                    ${formatting.italic ? 'bg-blue-500/10 text-blue-500' : 'text-gray-500 hover:bg-gray-200/50'}
-                    ${darkMode && !formatting.italic ? 'hover:bg-gray-700' : ''}
-                  `}
-                  aria-label="Italic"
-                >
-                  <Italic className="h-5 w-5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleFormatting('underline')}
-                  className={`
-                    p-2 rounded-lg transition-colors
-                    ${formatting.underline ? 'bg-blue-500/10 text-blue-500' : 'text-gray-500 hover:bg-gray-200/50'}
-                    ${darkMode && !formatting.underline ? 'hover:bg-gray-700' : ''}
-                  `}
-                  aria-label="Underline"
-                >
-                  <Underline className="h-5 w-5" />
-                </button>
-
+                {/* Formatting buttons - only for text notes */}
+                {note.type === 'note' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => toggleFormatting('bold')}
+                      className={`
+                        p-2 rounded-lg transition-colors
+                        ${formatting.bold ? 'bg-blue-500/10 text-blue-500' : 'text-gray-500 hover:bg-gray-200/50'}
+                        ${darkMode && !formatting.bold ? 'hover:bg-gray-700' : ''}
+                      `}
+                      aria-label="Bold"
+                    >
+                      <Bold className="h-5 w-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleFormatting('italic')}
+                      className={`
+                        p-2 rounded-lg transition-colors
+                        ${formatting.italic ? 'bg-blue-500/10 text-blue-500' : 'text-gray-500 hover:bg-gray-200/50'}
+                        ${darkMode && !formatting.italic ? 'hover:bg-gray-700' : ''}
+                      `}
+                      aria-label="Italic"
+                    >
+                      <Italic className="h-5 w-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleFormatting('underline')}
+                      className={`
+                        p-2 rounded-lg transition-colors
+                        ${formatting.underline ? 'bg-blue-500/10 text-blue-500' : 'text-gray-500 hover:bg-gray-200/50'}
+                        ${darkMode && !formatting.underline ? 'hover:bg-gray-700' : ''}
+                      `}
+                      aria-label="Underline"
+                    >
+                      <Underline className="h-5 w-5" />
+                    </button>
+                  </>
+                )}
+                
                 {/* More options dropdown */}
                 <div className="relative" ref={moreOptionsRef}>
                   <button
@@ -428,11 +458,11 @@ export default function CreateArea({ onAdd, darkMode }) {
                     <MoreHorizontal className="h-5 w-5" />
                     <ChevronDown className={`h-4 w-4 ml-1 transition-transform ${moreOptionsOpen ? 'rotate-180' : ''}`} />
                   </button>
-
+                  
                   {moreOptionsOpen && (
                     <div className={`
-                      absolute bottom-full mb-2 left-0 w-56 bg-white rounded-lg shadow-lg z-50
-                      ${darkMode ? 'bg-gray-800 border border-gray-700' : 'border border-gray-200'}
+                      absolute bottom-full mb-2 left-0 w-56 rounded-lg shadow-lg z-50
+                      ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}
                     `}>
                       <button
                         type="button"
@@ -440,7 +470,6 @@ export default function CreateArea({ onAdd, darkMode }) {
                           w-full text-left px-4 py-2 flex items-center hover:bg-gray-100
                           ${darkMode ? 'hover:bg-gray-700' : ''}
                         `}
-                        onClick={() => alert('Reminder')}
                       >
                         <Clock className="mr-3 h-5 w-5 text-gray-500" />
                         <span>Reminder</span>
@@ -451,7 +480,6 @@ export default function CreateArea({ onAdd, darkMode }) {
                           w-full text-left px-4 py-2 flex items-center hover:bg-gray-100
                           ${darkMode ? 'hover:bg-gray-700' : ''}
                         `}
-                        onClick={() => alert('Collaborator')}
                       >
                         <User className="mr-3 h-5 w-5 text-gray-500" />
                         <span>Collaborator</span>
@@ -462,7 +490,6 @@ export default function CreateArea({ onAdd, darkMode }) {
                           w-full text-left px-4 py-2 flex items-center hover:bg-gray-100
                           ${darkMode ? 'hover:bg-gray-700' : ''}
                         `}
-                        onClick={() => alert('Add Image')}
                       >
                         <ImageIcon className="mr-3 h-5 w-5 text-gray-500" />
                         <span>Add Image</span>
@@ -473,7 +500,6 @@ export default function CreateArea({ onAdd, darkMode }) {
                           w-full text-left px-4 py-2 flex items-center hover:bg-gray-100
                           ${darkMode ? 'hover:bg-gray-700' : ''}
                         `}
-                        onClick={() => alert('Add Checkbox')}
                       >
                         <CheckSquare className="mr-3 h-5 w-5 text-gray-500" />
                         <span>Add Checkbox</span>
@@ -482,7 +508,7 @@ export default function CreateArea({ onAdd, darkMode }) {
                   )}
                 </div>
               </div>
-
+              
               <div className="flex space-x-2">
                 <button
                   type="button"
@@ -497,13 +523,17 @@ export default function CreateArea({ onAdd, darkMode }) {
                 </button>
                 <button
                   type="submit"
-                  disabled={note.type === 'note' ? (!note.title && !note.content) :
-                    note.type === 'list' ? listItems.every(item => item.text.trim() === '') : false}
+                  disabled={
+                    // FIXED: Only disable for text notes without content
+                    note.type === 'note' ? (note.title.trim() === '' && note.content.trim() === '') : 
+                    note.type === 'list' ? note.listItems.every(item => item.text.trim() === '') : 
+                    false
+                  }
                   className={`
                     px-4 py-2 rounded-lg flex items-center space-x-2 transition-all
-                    ${(note.type === 'note' && (note.title || note.content)) ||
-                      (note.type === 'list' && !listItems.every(item => item.text.trim() === '')) ?
-                      'bg-blue-500 hover:bg-blue-600 text-white' :
+                    ${(note.type === 'note' && (note.title || note.content)) || 
+                      (note.type === 'list' && !note.listItems.every(item => item.text.trim() === '')) ? 
+                      'bg-blue-500 hover:bg-blue-600 text-white' : 
                       'bg-gray-200 text-gray-400 cursor-not-allowed'}
                     ${darkMode && !(note.title || note.content) ? 'bg-gray-700' : ''}
                   `}
