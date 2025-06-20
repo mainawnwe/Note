@@ -41,13 +41,15 @@ export default function CreateArea({ onAdd, darkMode }) {
 
   // Handle different note types
   const handleNoteTypeChange = (type) => {
-    setNote(prev => ({ 
-      ...prev, 
-      type,
+    const newNote = {
       title: '',
       content: '',
+      color: darkMode ? '#1e293b' : '#ffffff',
+      pinned: false,
+      type: type,
       listItems: type === 'list' ? [{ id: 1, text: '', checked: false }] : []
-    }));
+    };
+    setNote(newNote);
     setIsExpanded(true);
   };
 
@@ -109,11 +111,17 @@ export default function CreateArea({ onAdd, darkMode }) {
       return;
     }
     
-    onAdd({
-      ...note,
+    const noteToSend = {
+      title: note.title,
+      content: note.content,
+      type: note.type,
+      color: note.color,
+      pinned: note.pinned,
       listItems: note.type === 'list' ? note.listItems : null,
       createdAt: new Date().toISOString()
-    });
+    };
+    console.log("Submitting note object:", noteToSend);
+    onAdd(noteToSend);
     
     // Reset state
     setNote({ 

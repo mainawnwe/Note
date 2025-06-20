@@ -85,8 +85,10 @@ export default function MainContent({ isGridView, searchTerm, selectedCategory }
       const payload = {
         title: newNote.title,
         content: newNote.content,
+        type: newNote.type,
         color: newNote.color || '#ffffff',
-        pinned: newNote.pinned || false
+        pinned: newNote.pinned || false,
+        listItems: newNote.type === 'list' ? newNote.listItems : null
       };
 
       const response = await fetch(NOTES_API_ENDPOINT, {
