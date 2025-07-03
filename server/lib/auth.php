@@ -53,6 +53,19 @@ function validateAuthToken($token) {
 
 function getAuthenticatedUser() {
     $headers = getallheaders();
+
+    // Check for Authorization header in different server variables for compatibility
+    if (!isset($headers['Authorization'])) {
+        if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+            $headers['Authorization'] = $_SERVER['HTTP_AUTHORIZATION'];
+        } elseif (function_exists('apache_request_headers')) {
+            $requestHeaders = apache_request_headers();
+            if (isset($requestHeaders['Authorization'])) {
+                $headers['Authorization'] = $requestHeaders['Authorization'];
+            }
+        }
+    }
+
     if (!isset($headers['Authorization'])) {
         return false;
     }

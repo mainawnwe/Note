@@ -8,17 +8,35 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        // Clear token and user on mount to force login page for testing
+        localStorage.removeItem('token');
+        setUser(null);
+        setLoading(false);
+
+        /*
         const token = localStorage.getItem('token');
+        console.log('AuthContext: token from localStorage:', token);
         if (token) {
             axios.get('http://localhost:8000/auth/profile.php', {
                 headers: { Authorization: `Bearer ${token}` }
             })
-            .then(response => setUser(response.data))
-            .catch(() => localStorage.removeItem('token'))
+            .then(response => {
+                console.log('AuthContext: profile response:', response.data);
+                const userData = response.data;
+                if (userData.profile_picture) {
+                    userData.profile_picture = userData.profile_picture.replace('/api/lib/uploads/', '/uploads/');
+                }
+                setUser(userData);
+            })
+            .catch((error) => {
+                console.error('AuthContext: profile fetch error:', error);
+                localStorage.removeItem('token');
+            })
             .finally(() => setLoading(false));
         } else {
             setLoading(false);
         }
+        */
     }, []);
 
     const login = async (credentials) => {

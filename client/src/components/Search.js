@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const Search = ({ onSearch, searchTerm, setSearchTerm, onFocus, onBlur }) => {
+const Search = ({ onSearch, searchTerm, setSearchTerm, onFocus, onBlur, darkMode }) => {
   const [error, setError] = useState(null);
 
   const handleSearch = async () => {
@@ -31,7 +31,7 @@ const Search = ({ onSearch, searchTerm, setSearchTerm, onFocus, onBlur }) => {
         onFocus={onFocus}
         onBlur={onBlur}
         placeholder="Search notes..."
-        className="p-2 border rounded"
+        className={`p-2 border rounded ${darkMode ? 'bg-gray-800 text-white border-gray-600' : 'bg-white text-black border-gray-300'}`}
       />
       <button
         onClick={handleSearch}

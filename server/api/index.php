@@ -3,7 +3,7 @@
 // --- CORS Configuration ---
 header("Access-Control-Allow-Origin: http://localhost:3000");
 header("Content-Type: application/json; charset=UTF-8");
-header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
+header("Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
 header("Access-Control-Max-Age: 3600");
 
@@ -40,6 +40,7 @@ switch ($method) {
         handlePost($pdo);
         break;
     case 'PUT':
+    case 'PATCH':
         handlePut($pdo);
         break;
     case 'DELETE':
@@ -62,7 +63,7 @@ function handleGet($pdo) {
                 return;
             }
 
-            $stmt = $pdo->prepare("SELECT id, title, content, created_at AS createdAt, color, pinned, labels, image_url FROM notes WHERE id = :id");
+            $stmt = $pdo->prepare("SELECT id, title, content, type, created_at AS createdAt, color, pinned, labels, image_url, drawing_data, status, reminder FROM notes WHERE id = :id");
             $stmt->bindParam(':id', $id, PDO::PARAM_INT);
             $stmt->execute();
             $note = $stmt->fetch();
@@ -75,8 +76,21 @@ function handleGet($pdo) {
                 echo json_encode(['error' => true, 'message' => 'Note not found']);
             }
         } else {
-            $stmt = $pdo->query("SELECT id, title, content, created_at AS createdAt, color, pinned, labels, image_url FROM notes ORDER BY created_at DESC");
+            $stmt = $pdo->query("SELECT id, title, content, type, created_at AS createdAt, color, pinned, labels, image_url, drawing_data, status, reminder FROM notes ORDER BY created_at DESC");
             $notes = $stmt->fetchAll();
+
+            // Fetch list items for each note if type is list
+            foreach ($notes as &$note) {
+                if ($note['type'] === 'list') {
+                    $stmtItems = $pdo->prepare("SELECT id, text, checked, position FROM note_items WHERE note_id = :note_id ORDER BY position ASC");
+                    $stmtItems->bindParam(':note_id', $note['id'], PDO::PARAM_INT);
+                    $stmtItems->execute();
+                    $note['listItems'] = $stmtItems->fetchAll();
+                } else {
+                    $note['listItems'] = [];
+                }
+            }
+
             http_response_code(200);
             echo json_encode($notes ?: []);
         }
@@ -99,65 +113,75 @@ function handlePost($pdo) {
     }
 
     $title = $data['title'] ?? '';
-    $content = $data['content'] ?? '';
-    $type = $data['type'] ?? 'note';
+        $content = $data['content'] ?? '';
+        $type = $data['type'] ?? 'note';
 
-    // Debug log type value
-    error_log('Note type: ' . $type);
+        // Debug log type value
+        error_log('Note type: ' . $type);
 
-    $color = $data['color'] ?? '#ffffff';
-    $pinned = isset($data['pinned']) && $data['pinned'] ? 1 : 0;
-    $listItems = $data['listItems'] ?? null;
+        $color = $data['color'] ?? '#ffffff';
+        $pinned = isset($data['pinned']) && $data['pinned'] ? 1 : 0;
+        $listItems = $data['listItems'] ?? null;
+        $drawing_data = $data['drawing_data'] ?? null;
 
-    $labels = $data['labels'] ?? '';
-    $image_url = $data['image_url'] ?? '';
-
-    // Validation based on note type
-    if ($type === 'note' && (empty($title) && empty($content))) {
-        http_response_code(400);
-        echo json_encode(['error' => true, 'message' => 'Title or content required for text notes']);
-        return;
-    }
-
-    if ($type === 'list' && (!is_array($listItems) || count(array_filter($listItems, function($item) {
-        return isset($item['text']) && trim($item['text']) !== '';
-    })) === 0)) {
-        http_response_code(400);
-        echo json_encode(['error' => true, 'message' => 'At least one list item is required']);
-        return;
-    }
-
-    try {
-        $stmt = $pdo->prepare("INSERT INTO notes (title, content, type, color, pinned, labels, image_url) 
-                                VALUES (:title, :content, :type, :color, :pinned, :labels, :image_url)");
-        $stmt->execute([
-            ':title' => $title,
-            ':content' => $content,
-            ':type' => $type,
-            ':color' => $color,
-            ':pinned' => $pinned,
-            ':labels' => $labels,
-            ':image_url' => $image_url
-        ]);
-        $id = $pdo->lastInsertId();
-
-        // Insert list items if type is list
+        // For list type, concatenate listItems text into content string
         if ($type === 'list' && is_array($listItems)) {
-            $position = 0;
-            $stmtItem = $pdo->prepare("INSERT INTO note_items (note_id, text, checked, position) VALUES (:note_id, :text, :checked, :position)");
-            foreach ($listItems as $item) {
-                if (isset($item['text']) && trim($item['text']) !== '') {
-                    $stmtItem->execute([
-                        ':note_id' => $id,
-                        ':text' => $item['text'],
-                        ':checked' => isset($item['checked']) && $item['checked'] ? 1 : 0,
-                        ':position' => $position++
-                    ]);
-                }
-            }
+            $content = implode("\n", array_map(function($item) {
+                return isset($item['text']) ? $item['text'] : '';
+            }, $listItems));
         }
 
-        $stmt = $pdo->prepare("SELECT id, title, content, type, created_at AS createdAt, color, pinned, labels, image_url FROM notes WHERE id = :id");
+        $labels = $data['labels'] ?? '';
+        $image_url = $data['image_url'] ?? '';
+
+        // Validation based on note type
+        if ($type === 'note' && (empty($title) && empty($content))) {
+            http_response_code(400);
+            echo json_encode(['error' => true, 'message' => 'Title or content required for text notes']);
+            return;
+        }
+
+        if ($type === 'list' && (!is_array($listItems) || count(array_filter($listItems, function($item) {
+            return isset($item['text']) && trim($item['text']) !== '';
+        })) === 0)) {
+            http_response_code(400);
+            echo json_encode(['error' => true, 'message' => 'At least one list item is required']);
+            return;
+        }
+
+        try {
+      $stmt = $pdo->prepare("INSERT INTO notes (title, content, type, color, pinned, labels, image_url, drawing_data, reminder) 
+                                    VALUES (:title, :content, :type, :color, :pinned, :labels, :image_url, :drawing_data, :reminder)");
+            $stmt->execute([
+                ':title' => $title,
+                ':content' => $content,
+                ':type' => $type,
+                ':color' => $color,
+                ':pinned' => $pinned,
+                ':labels' => $labels,
+                ':image_url' => $image_url,
+                ':drawing_data' => $drawing_data,
+                ':reminder' => $data['reminder'] ?? null
+            ]);
+            $id = $pdo->lastInsertId();
+
+            // Insert list items if type is list
+            if ($type === 'list' && is_array($listItems)) {
+                $position = 0;
+                $stmtItem = $pdo->prepare("INSERT INTO note_items (note_id, text, checked, position) VALUES (:note_id, :text, :checked, :position)");
+                foreach ($listItems as $item) {
+                    if (isset($item['text']) && trim($item['text']) !== '') {
+                        $stmtItem->execute([
+                            ':note_id' => $id,
+                            ':text' => $item['text'],
+                            ':checked' => isset($item['checked']) && $item['checked'] ? 1 : 0,
+                            ':position' => $position++
+                        ]);
+                    }
+                }
+            }
+
+        $stmt = $pdo->prepare("SELECT id, title, content, type, created_at AS createdAt, color, pinned, labels, image_url, drawing_data, status, reminder FROM notes WHERE id = :id");
         $stmt->bindParam(':id', $id, PDO::PARAM_INT);
         $stmt->execute();
         $note = $stmt->fetch();
@@ -181,13 +205,25 @@ function handlePost($pdo) {
 }
 
 function handlePut($pdo) {
-    if (!isset($_GET['id'])) {
+    // Accept id from query parameter or URL path
+    $id = null;
+    if (isset($_GET['id'])) {
+        $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+    } else {
+        // Try to get id from URL path (e.g., /api/notes/16)
+        $path = $_SERVER['REQUEST_URI'];
+        $parts = explode('/', trim($path, '/'));
+        $lastPart = end($parts);
+        if (is_numeric($lastPart)) {
+            $id = (int)$lastPart;
+        }
+    }
+
+    if (!$id) {
         http_response_code(400);
         echo json_encode(['error' => true, 'message' => 'Note ID required']);
         return;
     }
-
-    $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
     if (!$id) {
         http_response_code(400);
         echo json_encode(['error' => true, 'message' => 'Invalid note ID']);
@@ -207,8 +243,10 @@ function handlePut($pdo) {
     $pinned = $data['pinned'] ?? null;
     $labels = $data['labels'] ?? null;
     $image_url = $data['image_url'] ?? null;
+    $listItems = $data['listItems'] ?? null;
+    $drawing_data = $data['drawing_data'] ?? null;
 
-    if ($title === null && $content === null && $color === null && $pinned === null && $labels === null && $image_url === null) {
+    if ($title === null && $content === null && $color === null && $pinned === null && $labels === null && $image_url === null && $listItems === null && $drawing_data === null) {
         http_response_code(400);
         echo json_encode(['error' => true, 'message' => 'No data provided']);
         return;
@@ -242,17 +280,45 @@ function handlePut($pdo) {
             $fields[] = "image_url = :image_url";
             $params[':image_url'] = $image_url;
         }
-
+        if ($drawing_data !== null) {
+            $fields[] = "drawing_data = :drawing_data";
+            $params[':drawing_data'] = $drawing_data;
+        }
+        if (isset($data['status'])) {
+            $fields[] = "status = :status";
+            $params[':status'] = $data['status'];
+        }
         $sql = "UPDATE notes SET " . implode(', ', $fields) . " WHERE id = :id";
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
 
-        $stmt = $pdo->prepare("SELECT id, title, content, created_at AS createdAt, color, pinned, labels, image_url FROM notes WHERE id = :id");
+        $stmt = $pdo->prepare("SELECT id, title, content, type, created_at AS createdAt, color, pinned, labels, image_url, drawing_data FROM notes WHERE id = :id");
         $stmt->bindParam(':id', $id, PDO::PARAM_INT);
         $stmt->execute();
         $note = $stmt->fetch();
 
         if ($note) {
+            // Update list items if provided
+            if ($listItems !== null && is_array($listItems)) {
+                // Delete existing list items for the note
+                $stmtDelete = $pdo->prepare("DELETE FROM note_items WHERE note_id = :note_id");
+                $stmtDelete->execute([':note_id' => $id]);
+
+                // Insert updated list items
+                $stmtInsert = $pdo->prepare("INSERT INTO note_items (note_id, text, checked, position) VALUES (:note_id, :text, :checked, :position)");
+                $position = 0;
+                foreach ($listItems as $item) {
+                    if (isset($item['text']) && trim($item['text']) !== '') {
+                        $stmtInsert->execute([
+                            ':note_id' => $id,
+                            ':text' => $item['text'],
+                            ':checked' => isset($item['checked']) && $item['checked'] ? 1 : 0,
+                            ':position' => $position++
+                        ]);
+                    }
+                }
+            }
+
             http_response_code(200);
             echo json_encode($note);
         } else {
@@ -266,13 +332,25 @@ function handlePut($pdo) {
 }
 
 function handleDelete($pdo) {
-    if (!isset($_GET['id'])) {
+    // Accept id from query parameter or URL path
+    $id = null;
+    if (isset($_GET['id'])) {
+        $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+    } else {
+        // Try to get id from URL path (e.g., /api/notes/16)
+        $path = $_SERVER['REQUEST_URI'];
+        $parts = explode('/', trim($path, '/'));
+        $lastPart = end($parts);
+        if (is_numeric($lastPart)) {
+            $id = (int)$lastPart;
+        }
+    }
+
+    if (!$id) {
         http_response_code(400);
         echo json_encode(['error' => true, 'message' => 'Note ID required']);
         return;
     }
-
-    $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
     if (!$id) {
         http_response_code(400);
         echo json_encode(['error' => true, 'message' => 'Invalid note ID']);
@@ -280,17 +358,18 @@ function handleDelete($pdo) {
     }
 
     try {
-        $stmt = $pdo->prepare("DELETE FROM notes WHERE id = :id");
-        $stmt->bindParam(':id', $id, PDO::PARAM_INT);
-        $stmt->execute();
+            // Soft delete: set status to 'trashed' instead of deleting
+            $stmt = $pdo->prepare("UPDATE notes SET status = 'trashed' WHERE id = :id");
+            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+            $stmt->execute();
 
-        if ($stmt->rowCount() > 0) {
-            http_response_code(200);
-            echo json_encode(['success' => true, 'message' => 'Note deleted']);
-        } else {
-            http_response_code(404);
-            echo json_encode(['error' => true, 'message' => 'Note not found']);
-        }
+            if ($stmt->rowCount() > 0) {
+                http_response_code(200);
+                echo json_encode(['success' => true, 'message' => 'Note moved to trash']);
+            } else {
+                http_response_code(404);
+                echo json_encode(['error' => true, 'message' => 'Note not found']);
+            }
     } catch (PDOException $e) {
         http_response_code(500);
         echo json_encode(['error' => true, 'message' => 'Error deleting note: ' . $e->getMessage()]);

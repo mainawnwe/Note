@@ -30,20 +30,67 @@ const categories = {
     ],
 };
 
-const CategorizedSearch = ({ onCategoryClick, darkMode }) => {
+const CategorizedSearch = ({ navigationStack = [], onBack, onClose, onCategoryClick, darkMode }) => {
     const [showMoreThings, setShowMoreThings] = useState(false);
     const [showMoreColors, setShowMoreColors] = useState(false);
-
-    const visibleThings = showMoreThings ? categories.things : categories.things.slice(0, 4);
-    const visibleColors = showMoreColors ? categories.colors : categories.colors.slice(0, 4);
 
     const bgColor = darkMode ? 'bg-gray-900' : 'bg-white';
     const textColor = darkMode ? 'text-gray-100' : 'text-gray-900';
     const sectionBg = darkMode ? 'bg-gray-800' : 'bg-gray-50';
     const buttonHover = darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100';
 
+    const visibleThings = showMoreThings ? categories.things : categories.things.slice(0, 4);
+    const visibleColors = showMoreColors ? categories.colors : categories.colors.slice(0, 4);
+
+    const currentCategory = navigationStack.length > 0 ? navigationStack[navigationStack.length - 1] : null;
+
+    if (currentCategory && currentCategory !== 'CATEGORY_SELECTION') {
+        // Render filtered view for the selected category with back and close buttons inside the main body area
+        return (
+            <div className={`p-4 rounded-xl ${bgColor} ${textColor} shadow-lg`}>
+                <h2 className="text-xl font-semibold mb-2">
+                    {currentCategory}
+                </h2>
+                <p className="text-sm opacity-70 mb-4">Showing notes filtered by this category.</p>
+                <div className="flex space-x-2">
+                    <div className="flex justify-between items-center w-full">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          console.log('CategorizedSearch back button clicked');
+                          if (onBack) onBack();
+                        }}
+                        className={`px-3 py-1 rounded-md border ${darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-100'}`}
+                      >
+                        &larr; Back
+                      </button>
+                      <button
+                        onClick={onClose}
+                        aria-label="Close categorized search"
+                        className={`px-3 py-1 rounded-md border flex items-center space-x-1 ${darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-100'}`}
+                      >
+                        <span>&times;</span>
+                        <span>Close</span>
+                      </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Render main categories view
     return (
         <div className={`p-4 rounded-xl ${bgColor} ${textColor} shadow-lg`}>
+            <div className="flex justify-end mb-2">
+                <button
+                    onClick={onClose}
+                    aria-label="Close categorized search"
+                    className={`px-3 py-1 rounded-md border flex items-center space-x-1 ${darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-100'}`}
+                >
+                    <span>&times;</span>
+                    <span>Close</span>
+                </button>
+            </div>
             {/* Types Section */}
             <div className={`p-4 mb-4 rounded-xl ${sectionBg}`}>
                 <h2 className="font-bold mb-4 text-lg flex items-center">

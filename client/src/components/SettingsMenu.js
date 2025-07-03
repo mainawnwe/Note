@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Settings, Sun, Moon, HelpCircle, Info, Key } from 'react-feather';
 import DetailedSettingsPanel from './DetailedSettingsPanel';
-import FeedbackModal from './FeedbackModal';
+import FeedbackDropdown from './FeedbackDropdown';
 import KeyboardShortcutsModal from './KeyboardShortcutsModal';
 import HelpModal from './HelpModal';
 
@@ -24,7 +24,7 @@ export default function SettingsMenu({
     evening: '18:00',
   });
 
-  // Modal open states
+  // Dropdown open states
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -38,6 +38,7 @@ export default function SettingsMenu({
     const handleClickOutside = (event) => {
       if (settingsRef.current && !settingsRef.current.contains(event.target)) {
         setSettingsOpen(false);
+        setIsFeedbackOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -62,7 +63,7 @@ export default function SettingsMenu({
         {settingsOpen && (
           <div
             ref={settingsRef}
-            className={`absolute top-full right-0 mt-2 w-56 rounded-xl shadow-xl z-50 overflow-hidden transition-all duration-200 origin-top ${darkMode
+            className={`absolute top-full right-0 mt-2 w-72 rounded-xl shadow-xl z-50 overflow-hidden transition-all duration-200 origin-top ${darkMode
               ? 'bg-gray-800 border border-gray-700 shadow-gray-900/50'
               : 'bg-white border border-gray-200 shadow-gray-400/30'
               }`}
@@ -96,7 +97,7 @@ export default function SettingsMenu({
                   }`}
                 onClick={() => {
                   setSettingsOpen(false);
-                  setIsFeedbackOpen(true);
+                  setIsFeedbackOpen(prev => !prev);
                 }}
               >
                 <HelpCircle className="h-5 w-5 mr-3 flex-shrink-0" />
@@ -127,6 +128,10 @@ export default function SettingsMenu({
             </div>
           </div>
         )}
+
+        {isFeedbackOpen && (
+          <FeedbackDropdown isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} />
+        )}
       </div>
 
       {showDetailedSettings && (
@@ -150,7 +155,6 @@ export default function SettingsMenu({
         />
       )}
 
-      <FeedbackModal isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} />
       <KeyboardShortcutsModal isOpen={isKeyboardShortcutsOpen} onClose={() => setIsKeyboardShortcutsOpen(false)} />
       <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
     </>

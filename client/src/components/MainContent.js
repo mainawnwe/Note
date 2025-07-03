@@ -7,9 +7,9 @@ import Modal from './Modal';
 import { useTheme } from '../context/ThemeContext';
 import Header from './Header';
 
-const NOTES_API_ENDPOINT = 'http://localhost:8000';
+const NOTES_API_ENDPOINT = 'http://localhost:8000/index.php';
 
-export default function MainContent({ isGridView, searchTerm, selectedCategory }) {
+export default function MainContent({ isGridView, searchTerm, selectedCategory, onBack, onClose }) {
   const { darkMode } = useTheme();
 
   const [notes, setNotes] = useState([]);
@@ -18,10 +18,11 @@ export default function MainContent({ isGridView, searchTerm, selectedCategory }
   const [showModal, setShowModal] = useState(false);
   const [modalContent, setModalContent] = useState({});
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     fetchNotes();
-  }, []);
+  }, [selectedCategory, searchTerm]);
 
   useEffect(() => {
     if (showModal && modalContent.type === 'success') {
@@ -41,9 +42,22 @@ export default function MainContent({ isGridView, searchTerm, selectedCategory }
 
   const fetchNotes = async () => {
     try {
+      console.log('Fetching notes with selectedCategory:', selectedCategory);
       setIsLoading(true);
       setIsRefreshing(true);
-      const response = await fetch(NOTES_API_ENDPOINT);
+      // Determine if selectedCategory is a status or a type
+      const statusCategories = ['trash', 'archive'];
+      let url = NOTES_API_ENDPOINT;
+      if (selectedCategory) {
+        const lowerCat = selectedCategory.toLowerCase();
+        if (statusCategories.includes(lowerCat)) {
+          // Map to status values
+          const statusMap = { trash: 'trashed', archive: 'archived' };
+          url = `${NOTES_API_ENDPOINT}?status=${statusMap[lowerCat]}`;
+        }
+      }
+      console.log('Fetch URL:', url);
+      const response = await fetch(url);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -57,7 +71,12 @@ export default function MainContent({ isGridView, searchTerm, selectedCategory }
         id: note.id.toString()
       }));
 
-      formattedNotes.sort((a, b) => {
+      console.log('Formatted Notes:', formattedNotes); // Debug log to check notes data
+
+      // Filter out notes with status 'trashed' by default
+      const activeNotes = formattedNotes.filter(note => note.status !== 'trashed');
+
+      activeNotes.sort((a, b) => {
         if (a.pinned === b.pinned) {
           return new Date(b.createdAt) - new Date(a.createdAt);
         }
@@ -65,15 +84,69 @@ export default function MainContent({ isGridView, searchTerm, selectedCategory }
       });
 
       // Filter notes by selectedCategory if provided
-      const filteredNotes = selectedCategory
-        ? formattedNotes.filter(note => note.category === selectedCategory)
-        : formattedNotes;
+      let filteredNotes = activeNotes;
+
+      if (selectedCategory && selectedCategory !== 'Notes') {
+        // Define known note types and their plural forms mapping to singular
+        const noteTypesMap = {
+          'list': 'list',
+          'lists': 'list',
+          'drawing': 'drawing',
+          'drawings': 'drawing',
+          'image': 'image',
+          'images': 'image',
+          'text': 'text',
+          'texts': 'text',
+          'reminder': 'reminder',
+          'reminders': 'reminder',
+          'trash': 'trashed',
+          'archive': 'archived'
+        };
+
+        console.log('Selected Category:', selectedCategory);
+        console.log('Note types in data:', formattedNotes.map(note => note.type));
+
+        const normalizedCategory = selectedCategory.trim().toLowerCase();
+          if (noteTypesMap[normalizedCategory]) {
+            const singularType = noteTypesMap[normalizedCategory];
+            filteredNotes = activeNotes.filter(note =>
+              (note.type && note.type.toLowerCase() === singularType) ||
+              (note.category && note.category.toLowerCase() === normalizedCategory)
+            );
+            console.log('Filtering notes by type or category:', singularType, normalizedCategory, 'Result count:', filteredNotes.length);
+          } else {
+            console.log('No matching note type for category:', normalizedCategory);
+            filteredNotes = activeNotes.filter(note => note.category === selectedCategory);
+            console.log('Filtering notes by category:', selectedCategory, 'Result count:', filteredNotes.length);
+          }
+      }
+
+      // Filter notes by searchTerm if provided (case-insensitive)
+      if (searchTerm && searchTerm.trim() !== '') {
+        const lowerSearchTerm = searchTerm.toLowerCase();
+        filteredNotes = filteredNotes.filter(note =>
+          (note.title && note.title.toLowerCase().includes(lowerSearchTerm)) ||
+          (note.content && note.content.toLowerCase().includes(lowerSearchTerm))
+        );
+      }
 
       setNotes(filteredNotes);
       setError(null);
+      setRetryCount(0);
+      console.log('Notes state updated:', filteredNotes);
     } catch (err) {
       console.error('Fetch error:', err);
       setError(err.message);
+      showErrorModal(err.message);
+
+      // Retry logic: retry up to 3 times with delay
+      if (retryCount < 3) {
+        setRetryCount(retryCount + 1);
+        setTimeout(() => {
+          console.log(`Retrying fetchNotes, attempt ${retryCount + 1}`);
+          fetchNotes();
+        }, 2000);
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -88,7 +161,9 @@ export default function MainContent({ isGridView, searchTerm, selectedCategory }
         type: newNote.type,
         color: newNote.color || '#ffffff',
         pinned: newNote.pinned || false,
-        listItems: newNote.type === 'list' ? newNote.listItems : null
+        listItems: newNote.type === 'list' ? newNote.listItems : null,
+        drawing_data: newNote.type === 'drawing' ? newNote.drawingData : null,
+        image_url: newNote.type === 'image' ? newNote.imageData : null
       };
 
       const response = await fetch(NOTES_API_ENDPOINT, {
@@ -120,6 +195,7 @@ export default function MainContent({ isGridView, searchTerm, selectedCategory }
   };
 
   const handleRefresh = () => {
+    console.log('Refresh button clicked');
     fetchNotes();
   };
 
@@ -188,7 +264,30 @@ export default function MainContent({ isGridView, searchTerm, selectedCategory }
             </button>
           </div>
 
-          <CreateArea onAdd={handleAddNote} darkMode={darkMode} />
+          {selectedCategory && (
+            <div className="mb-6 p-4 rounded-lg border border-gray-300 dark:border-gray-700 flex items-center justify-between max-w-6xl mx-auto">
+              <div>
+                <h2 className="text-lg font-semibold">{selectedCategory}</h2>
+                <p className="text-sm opacity-70">Showing notes filtered by this category.</p>
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={onBack}
+                  className="px-3 py-1 rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  &larr; Back
+                </button>
+                <button
+                  onClick={onClose}
+                  className="px-3 py-1 rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  &times; Close
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!selectedCategory && <CreateArea onAdd={handleAddNote} darkMode={darkMode} />}
 
           {isLoading && (
             <div className={`flex flex-col justify-center items-center h-64 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`}>
@@ -226,7 +325,7 @@ export default function MainContent({ isGridView, searchTerm, selectedCategory }
               <Info className={`h-16 w-16 mx-auto mb-4 ${darkMode ? 'text-gray-500' : 'text-slate-400'}`} />
               <h3 className="text-xl font-medium mb-2">Your notes collection is empty</h3>
               <p className={`max-w-md mx-auto ${darkMode ? 'text-gray-400' : 'text-slate-500'}`}>
-                Start by adding your first note above. It could be anything - a thought, idea, or reminder!
+                {selectedCategory ? 'No notes found for this category.' : 'Start by adding your first note above. It could be anything - a thought, idea, or reminder!'}
               </p>
             </div>
           )}
@@ -246,23 +345,32 @@ export default function MainContent({ isGridView, searchTerm, selectedCategory }
 
               <div className={isGridView
                 ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
-                : "flex flex-col space-y-5"
+                : "flex flex-col space-y-3 max-w-3xl mx-auto"
               }>
-                {notes.map(note => (
-                  <Note
-                    key={note.id}
-                    id={note.id}
-                    title={note.title}
-                    content={note.content}
-                    createdAt={note.createdAt}
-                    pinned={note.pinned}
-                    color={note.color}
-                    darkMode={darkMode}
-                    onDelete={handleDeleteNote}
-                    onUpdate={handleUpdateNote}
-                  />
-                ))}
-              </div>
+          {notes.map(note => {
+            console.log('Rendering Note:', note);
+            return (
+              <Note
+                key={note.id}
+                id={note.id}
+                title={note.title}
+                content={note.content}
+                createdAt={note.createdAt}
+                pinned={note.pinned}
+                color={note.color}
+                darkMode={darkMode}
+                type={note.type}
+                drawingData={note.drawing_data}
+                imageData={note.image_url}
+                listItems={note.listItems}
+                isGridView={isGridView}
+                onDelete={handleDeleteNote}
+                onUpdate={handleUpdateNote}
+                searchTerm={searchTerm}
+              />
+            );
+          })}
+        </div>
             </>
           )}
         </div>

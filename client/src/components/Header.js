@@ -6,6 +6,7 @@ import {
   RefreshCw, Sun, Moon, Settings, HelpCircle, LogOut
 } from 'react-feather';
 import SearchBar from './Search';
+import CategorizedSearch from './CategorizedSearch';
 import DetailedSettingsPanel from './DetailedSettingsPanel';
 import FeedbackModal from './FeedbackModal';
 import SettingsMenu from './SettingsMenu';
@@ -17,6 +18,10 @@ function Header({
   onToggleView = () => { },
   onRefreshNotes = () => { },
   onMenuClick = () => { },
+  onBack = () => { },
+  onClose = () => { },
+  navigationStack,
+  setNavigationStack,
   user = {},
   onSignOut = () => { },
   allLabels = [],
@@ -35,6 +40,8 @@ function Header({
 
   const menuRef = useRef(null);
   const profileRef = useRef(null);
+  const searchBarRef = useRef(null);
+  const dropdownRef = useRef(null);
 
   const navigate = useNavigate();
 
@@ -60,9 +67,47 @@ function Header({
 
   const handleMenuItemClick = (item) => {
     setActiveFilter(item);
-    onMenuClick(item);
+    // Treat "Notes" as clearing the filter
+    if (item === 'Notes') {
+      onMenuClick(null);
+    } else {
+      onMenuClick(item);
+    }
     setMenuOpen(false);
   };
+
+  const handleCategoryClick = (category) => {
+    console.log('handleCategoryClick called with:', category);
+    setNavigationStack(prevStack => {
+      // If the last item is CATEGORY_SELECTION, replace it with the new category
+      let newStack;
+      if (prevStack.length === 1 && prevStack[0] === 'CATEGORY_SELECTION') {
+        newStack = [category];
+      } else {
+        newStack = [...prevStack, category];
+      }
+      console.log('Updated navigationStack:', newStack);
+      return newStack;
+    });
+    onMenuClick(category);
+    setIsSearchFocused(false);
+  };
+
+  // New effect to hide CategorizedSearch dropdown when typing in search bar
+  React.useEffect(() => {
+    if (searchTerm && searchTerm.trim() !== '') {
+      setIsSearchFocused(false);
+    }
+  }, [searchTerm, setIsSearchFocused]);
+
+  const handleSearchFocus = () => {
+    console.log('Search bar focused');
+    setIsSearchFocused(true);
+    setNavigationStack(['CATEGORY_SELECTION']);
+    console.log('Navigation stack initialized:', ['CATEGORY_SELECTION']);
+  };
+
+  const selectedCategory = (navigationStack && navigationStack.length > 0) ? navigationStack[navigationStack.length - 1] : null;
 
   // Menu items configuration
   const menuItems = [
@@ -115,6 +160,12 @@ function Header({
 
       closeIfOutside(menuRef, setMenuOpen);
       closeIfOutside(profileRef, setProfileOpen);
+
+      // Close search dropdown if click outside search bar and dropdown
+      if (searchBarRef.current && !searchBarRef.current.contains(event.target) &&
+          dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsSearchFocused(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -204,22 +255,54 @@ function Header({
             </div>
 
             {/* Center Section - Search Bar */}
-            <div className="flex-grow max-w-2xl mx-4">
+            <div className="flex-grow max-w-2xl mx-4 relative">
               <SearchBar
                 onSearch={(results) => console.log('Search results:', results)}
                 darkMode={darkMode}
                 searchTerm={searchTerm}
                 setSearchTerm={setSearchTerm}
-                onFocus={() => setIsSearchFocused(true)}
-                onBlur={() => setIsSearchFocused(false)}
+                onFocus={(e) => {
+                  handleSearchFocus();
+                  setIsSearchFocused(true);
+                }}
+                setIsSearchFocused={setIsSearchFocused}
+                onBlur={(e) => {
+                  // Delay hiding to allow click on dropdown
+                  setTimeout(() => {
+                    // Check if the new focused element is inside the dropdown
+                    if (e.currentTarget && document.activeElement && !e.currentTarget.contains(document.activeElement)) {
+                      setIsSearchFocused(false);
+                    }
+                  }, 150);
+                }}
               />
+              {isSearchFocused && (
+                <div
+                  className="absolute top-full left-0 w-full z-50 mt-2 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-300 dark:border-gray-700"
+                  onMouseDown={(e) => {
+                    // Prevent blur when clicking inside dropdown
+                    e.preventDefault();
+                  }}
+                >
+                  <CategorizedSearch
+                    navigationStack={navigationStack}
+                    onBack={onBack}
+                    onClose={() => setIsSearchFocused(false)}
+                    onCategoryClick={handleCategoryClick}
+                    darkMode={darkMode}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Right Section - Controls */}
             <div className="flex items-center space-x-2">
               {/* View Toggle */}
               <button
-                onClick={toggleView}
+                onClick={() => {
+                  console.log('Header: View toggle clicked');
+                  toggleView();
+                }}
                 className={`p-2 rounded-lg transition-all duration-200 ${darkMode
                   ? 'hover:bg-gray-800/80 text-gray-300'
                   : 'hover:bg-amber-100 text-gray-700'
@@ -235,7 +318,10 @@ function Header({
 
               {/* Refresh Button */}
               <button
-                onClick={handleRefresh}
+                onClick={() => {
+                  console.log('Header: Refresh button clicked');
+                  handleRefresh();
+                }}
                 disabled={isRefreshing}
                 className={`p-2 rounded-lg transition-all duration-200 ${darkMode
                   ? 'hover:bg-gray-800/80 text-gray-300'
@@ -275,10 +361,18 @@ function Header({
                   aria-label="User profile"
                   aria-expanded={profileOpen}
                 >
-                  <div className={`bg-gradient-to-br rounded-full w-8 h-8 flex items-center justify-center text-white font-medium shadow-md transition-transform duration-300 hover:scale-105 ${darkMode ? 'from-amber-500 to-amber-600' : 'from-amber-400 to-amber-500'
-                    }`}>
-                    {user?.name?.charAt(0).toUpperCase() || 'U'}
-                  </div>
+                  {user?.profile_picture ? (
+                    <img
+                      src={`http://localhost:8000/uploads/${user.profile_picture.replace(/^\/uploads\//, '')}`}
+                      alt="Profile"
+                      className="rounded-full w-8 h-8 object-cover shadow-md transition-transform duration-300 hover:scale-105"
+                    />
+                  ) : (
+                    <div className={`bg-gradient-to-br rounded-full w-8 h-8 flex items-center justify-center text-white font-medium shadow-md transition-transform duration-300 hover:scale-105 ${darkMode ? 'from-amber-500 to-amber-600' : 'from-amber-400 to-amber-500'
+                      }`}>
+                      {(user?.username || user?.name)?.charAt(0).toUpperCase() || 'U'}
+                    </div>
+                  )}
                   <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${profileOpen ? 'rotate-180' : ''}`} />
                 </button>
 
@@ -293,13 +387,21 @@ function Header({
                     <div className={`p-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'
                       }`}>
                       <div className="flex items-center space-x-3">
-                        <div className={`bg-gradient-to-br rounded-full w-12 h-12 flex items-center justify-center text-white font-medium shadow-lg ${darkMode ? 'from-amber-500 to-amber-600' : 'from-amber-400 to-amber-500'
-                          }`}>
-                          {user?.name?.charAt(0).toUpperCase() || 'U'}
-                        </div>
+                    {user?.profile_picture ? (
+                      <img
+                        src={`http://localhost:8000/uploads/${user.profile_picture.replace(/^\/uploads\//, '')}`}
+                        alt="Profile"
+                        className="rounded-full w-12 h-12 object-cover border-4 border-amber-500 shadow-lg"
+                      />
+                    ) : (
+                      <div className={`bg-gradient-to-br rounded-full w-12 h-12 flex items-center justify-center text-white font-medium shadow-lg ${darkMode ? 'from-amber-500 to-amber-600' : 'from-amber-400 to-amber-500'
+                        }`}>
+                        {user?.name?.charAt(0).toUpperCase() || 'U'}
+                      </div>
+                    )}
                         <div className="overflow-hidden">
                           <p className={`font-semibold truncate ${darkMode ? 'text-gray-300' : 'text-gray-900'}`}>
-                            {user?.name || 'User'}
+                            {user?.username || user?.name || 'User'}
                           </p>
                           <p className={`text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                             {user?.email || 'user@example.com'}
@@ -308,6 +410,17 @@ function Header({
                       </div>
                     </div>
                     <div className="py-2">
+                      <button
+                        className={`flex items-center w-full px-4 py-3 transition-colors duration-150 ${darkMode ? 'hover:bg-gray-700/50 text-gray-300' : 'hover:bg-amber-50 text-gray-700'
+                          }`}
+                        onClick={() => {
+                          navigate('/profile');
+                          setProfileOpen(false);
+                        }}
+                      >
+                        <Edit3 className="h-5 w-5 mr-3 flex-shrink-0" />
+                        <span className="font-medium">Profile</span>
+                      </button>
                       <button
                         className={`flex items-center w-full px-4 py-3 transition-colors duration-150 ${darkMode ? 'hover:bg-gray-700/50 text-gray-300' : 'hover:bg-amber-50 text-gray-700'
                           }`}

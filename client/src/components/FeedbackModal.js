@@ -34,7 +34,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
       aria-labelledby="feedback-modal-title"
     >
       <div
-        className="bg-white dark:bg-gray-800 h-full w-full max-w-sm p-6 shadow-xl overflow-y-auto animate-slide-in-right rounded-l-lg"
+        className="bg-white dark:bg-gray-800 h-full w-full max-w-md p-6 shadow-xl overflow-y-auto animate-slide-in-right rounded-l-lg"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-4">
@@ -57,7 +57,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
         <form onSubmit={handleSubmit}>
           <textarea
             ref={textareaRef}
-            className="w-full h-32 p-2 border border-gray-300 rounded-md resize-none dark:bg-gray-700 dark:text-white dark:border-gray-600"
+            className="w-full h-48 p-2 border border-gray-300 rounded-md resize-none dark:bg-gray-700 dark:text-white dark:border-gray-600"
             placeholder="Write your feedback here..."
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}

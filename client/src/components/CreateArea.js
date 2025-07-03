@@ -1,25 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
-import {
-  Clock,
-  User,
-  Image as ImageIcon,
-  Archive,
-  MoreHorizontal,
-  Tag,
-  CheckSquare,
-  Copy,
-  X,
-  Pin,
-  ChevronDown,
-  Send,
-  Bold,
-  Italic,
-  Underline,
-  Type,
-  List,
-  PenTool,
-  Camera
-} from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Type, List, PenTool, Camera, Send, X, Pin, Plus, CheckCircle, MoreHorizontal, ChevronDown, Clock, User, Bold, Italic, Underline, Trash2 } from 'lucide-react';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import DrawingCanvas from './DrawingCanvas';
+import ImageUpload from './ImageUpload';
 
 export default function CreateArea({ onAdd, darkMode }) {
   const [note, setNote] = useState({
@@ -28,8 +11,13 @@ export default function CreateArea({ onAdd, darkMode }) {
     color: darkMode ? '#1e293b' : '#ffffff',
     pinned: false,
     type: 'note',
-    listItems: [{ id: 1, text: '', checked: false }]
+    listItems: [],
+    drawingDataUrl: null,
+    imageData: null,
+    imageUrl: null,
+    drawingColor: '#000000',
   });
+
   const [isExpanded, setIsExpanded] = useState(false);
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
   const [formatting, setFormatting] = useState({
@@ -37,131 +25,207 @@ export default function CreateArea({ onAdd, darkMode }) {
     italic: false,
     underline: false,
   });
-  const moreOptionsRef = useRef(null);
 
-  // Handle different note types
+  const moreOptionsRef = useRef(null);
+  const formRef = useRef(null);
+
+  useEffect(() => {
+    if (note.type === 'list' && note.listItems.length === 0) {
+      setNote(prevNote => ({
+        ...prevNote,
+        listItems: [{ id: Date.now(), text: '', checked: false }]
+      }));
+    }
+  }, [note.type, note.listItems.length]);
+
   const handleNoteTypeChange = (type) => {
-    const newNote = {
+    setNote({
       title: '',
       content: '',
-      color: darkMode ? '#1e293b' : '#ffffff',
+      color: note.color,
       pinned: false,
-      type: type,
-      listItems: type === 'list' ? [{ id: 1, text: '', checked: false }] : []
-    };
-    setNote(newNote);
+      type,
+      listItems: type === 'list' ? [{ id: Date.now(), text: '', checked: false }] : [],
+      drawingDataUrl: null,
+      imageData: null,
+      imageUrl: null,
+      drawingColor: '#000000',
+    });
     setIsExpanded(true);
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setNote(prevNote => ({ ...prevNote, [name]: value }));
-  };
-
-  const toggleFormatting = (type) => {
-    setFormatting(prev => ({ ...prev, [type]: !prev[type] }));
+    setNote(prev => ({ ...prev, [name]: value }));
   };
 
   const togglePin = () => {
-    setNote(prevNote => ({ ...prevNote, pinned: !prevNote.pinned }));
+    setNote(prev => ({ ...prev, pinned: !prev.pinned }));
   };
 
-  const handleColorChange = (color) => {
-    setNote(prevNote => ({ ...prevNote, color }));
-  };
-
-  // List item management
   const addListItem = () => {
-    setNote(prevNote => ({
-      ...prevNote,
-      listItems: [...prevNote.listItems, { id: Date.now(), text: '', checked: false }]
+    setNote(prev => ({
+      ...prev,
+      listItems: [...prev.listItems, { id: Date.now(), text: '', checked: false }]
     }));
   };
 
   const updateListItem = (id, value) => {
-    setNote(prevNote => ({
-      ...prevNote,
-      listItems: prevNote.listItems.map(item => 
+    setNote(prev => ({
+      ...prev,
+      listItems: prev.listItems.map(item => 
         item.id === id ? { ...item, text: value } : item
       )
     }));
   };
 
   const toggleCheckItem = (id) => {
-    setNote(prevNote => ({
-      ...prevNote,
-      listItems: prevNote.listItems.map(item => 
+    setNote(prev => ({
+      ...prev,
+      listItems: prev.listItems.map(item => 
         item.id === id ? { ...item, checked: !item.checked } : item
       )
     }));
   };
 
-  const submitNote = (e) => {
-    e.preventDefault();
-    
-    // VALIDATION FIXED HERE: Only require title/content for text notes
-    if (note.type === 'note' && note.title.trim() === '' && note.content.trim() === '') {
-      alert('Title or content required for text notes');
-      return;
-    }
-    
-    // Only require list items for list notes
-    if (note.type === 'list' && note.listItems.every(item => item.text.trim() === '')) {
-      alert('At least one list item is required');
-      return;
-    }
-    
-    const noteToSend = {
-      title: note.title,
-      content: note.content,
-      type: note.type,
-      color: note.color,
-      pinned: note.pinned,
-      listItems: note.type === 'list' ? note.listItems : null,
-      createdAt: new Date().toISOString()
-    };
-    console.log("Submitting note object:", noteToSend);
-    onAdd(noteToSend);
-    
-    // Reset state
-    setNote({ 
-      title: '', 
-      content: '', 
-      color: darkMode ? '#1e293b' : '#ffffff', 
-      pinned: false,
-      type: 'note',
-      listItems: [{ id: 1, text: '', checked: false }]
-    });
-    setIsExpanded(false);
-    setMoreOptionsOpen(false);
+  const removeListItem = (id) => {
+    setNote(prev => ({
+      ...prev,
+      listItems: prev.listItems.filter(item => item.id !== id)
+    }));
   };
 
-  const handleFocus = () => {
-    if (!isExpanded) {
-      setIsExpanded(true);
+  const removeEmptyListItems = (list) => {
+    if (list.length === 1 && list[0].text.trim() === '') {
+      return list;
     }
+    return list.filter(item => item.text.trim() !== '');
+  };
+
+  const handleDragEnd = (result) => {
+    const { destination, source } = result;
+    if (!destination || destination.index === source.index) return;
+
+    const reordered = Array.from(note.listItems);
+    const [movedItem] = reordered.splice(source.index, 1);
+    reordered.splice(destination.index, 0, movedItem);
+
+    setNote(prevNote => ({
+      ...prevNote,
+      listItems: reordered
+    }));
+  };
+
+  const handleDrawingSave = (dataUrl) => {
+    setNote(prev => ({ ...prev, drawingDataUrl: dataUrl }));
+  };
+
+  const handleImageUpload = async (file, url, base64) => {
+    if (base64) {
+      setNote(prev => ({ ...prev, imageUrl: base64, imageData: base64 }));
+    } else if (url) {
+      setNote(prev => ({ ...prev, imageUrl: url, imageData: null }));
+    }
+  };
+
+  const handleColorChange = (color) => {
+    setNote(prev => ({ ...prev, color }));
+  };
+
+  const toggleFormatting = (type) => {
+    setFormatting(prev => ({ ...prev, [type]: !prev[type] }));
   };
 
   const toggleMoreOptions = () => {
     setMoreOptionsOpen(!moreOptionsOpen);
   };
 
-  const closeMoreOptions = (e) => {
-    if (moreOptionsRef.current && !moreOptionsRef.current.contains(e.target)) {
+  const handleClickOutside = (e) => {
+    if (moreOptionsRef.current && !moreOptionsRef.current.contains(e.target) &&
+        formRef.current && !formRef.current.contains(e.target)) {
+      setMoreOptionsOpen(false);
+      if (note.title.trim() === '' && note.content.trim() === '' && note.type === 'note') {
+        setIsExpanded(false);
+      }
+    } else if (moreOptionsRef.current && !moreOptionsRef.current.contains(e.target)) {
       setMoreOptionsOpen(false);
     }
   };
 
   useEffect(() => {
-    if (moreOptionsOpen) {
-      document.addEventListener('mousedown', closeMoreOptions);
-    } else {
-      document.removeEventListener('mousedown', closeMoreOptions);
-    }
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', closeMoreOptions);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [moreOptionsOpen]);
+  }, [moreOptionsOpen, isExpanded, note.title, note.content, note.type]);
+
+  const submitNote = (e) => {
+    e.preventDefault();
+
+    let finalNote = { ...note };
+
+    if (finalNote.type === 'list') {
+      finalNote.listItems = removeEmptyListItems(finalNote.listItems);
+    }
+
+    if (finalNote.type === 'note') {
+      if (finalNote.title.trim() === '' && finalNote.content.trim() === '') {
+        alert('Title or content required for text notes.');
+        return;
+      }
+    } else if (finalNote.type === 'list') {
+      if (finalNote.listItems.length === 0 || finalNote.listItems.every(item => item.text.trim() === '')) {
+        alert('At least one list item is required for list notes.');
+        return;
+      }
+    } else if (finalNote.type === 'image') {
+      if (!finalNote.imageUrl) {
+        alert('An image is required for image notes.');
+        return;
+      }
+    } else if (finalNote.type === 'drawing') {
+      if (!finalNote.drawingDataUrl) {
+        alert('A drawing is required for drawing notes.');
+        return;
+      }
+    }
+
+    const noteToSend = {
+      title: finalNote.title,
+      content: finalNote.content,
+      type: finalNote.type,
+      color: finalNote.color,
+      pinned: finalNote.pinned,
+      createdAt: new Date().toISOString(),
+    };
+
+    if (finalNote.type === 'list') {
+      noteToSend.content = finalNote.listItems.map(item => (item.checked ? '[x] ' : '[ ] ') + item.text).join('\n');
+      noteToSend.listItems = finalNote.listItems;
+    } else if (finalNote.type === 'drawing') {
+      noteToSend.drawingData = finalNote.drawingDataUrl;
+    } else if (finalNote.type === 'image') {
+      noteToSend.imageData = finalNote.imageData || note.imageUrl;
+    }
+
+    onAdd(noteToSend);
+
+    setNote({
+      title: '',
+      content: '',
+      color: darkMode ? '#1e293b' : '#ffffff',
+      pinned: false,
+      type: 'note',
+      listItems: [],
+      drawingDataUrl: null,
+      imageData: null,
+      imageUrl: null,
+      drawingColor: '#000000',
+    });
+    setIsExpanded(false);
+    setMoreOptionsOpen(false);
+    setFormatting({ bold: false, italic: false, underline: false });
+  };
 
   const colors = [
     { bg: darkMode ? '#1e293b' : '#ffffff', border: darkMode ? '#334155' : '#e2e8f0' },
@@ -175,47 +239,58 @@ export default function CreateArea({ onAdd, darkMode }) {
     { bg: '#e9d5ff', border: '#d8b4fe' },
   ];
 
+  // Calculate if the note is valid
+  const isNoteValid = 
+    (note.type === 'note' && (note.title || note.content)) ||
+    (note.type === 'list' && note.listItems.some(item => item.text.trim() !== '')) ||
+    (note.type === 'image' && note.imageUrl) ||
+    (note.type === 'drawing' && note.drawingDataUrl);
+
   return (
     <div className="my-8 max-w-2xl mx-auto transition-all duration-300">
-      {/* Google Keep-style note type selection */}
+      {/* Note type selector - visible only when not expanded */}
       {!isExpanded && (
         <div className={`flex justify-between items-center p-3 rounded-xl shadow-md mb-3 transition-all
-          ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}>
-          <button 
+          ${darkMode ? 'bg-gray-800 border border-gray-700 text-gray-200' : 'bg-white border border-gray-200 text-gray-700'}`}>
+          <button
             onClick={() => handleNoteTypeChange('note')}
-            className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
+            className={`flex items-center px-4 py-2 rounded-lg transition-all hover:scale-[1.03] ${
               darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
             }`}
+            aria-label="Create a new text note"
           >
             <Type className="mr-2 h-5 w-5" />
             <span>New Note</span>
           </button>
-          
-          <button 
+
+          <button
             onClick={() => handleNoteTypeChange('list')}
-            className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
+            className={`flex items-center px-4 py-2 rounded-lg transition-all hover:scale-[1.03] ${
               darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
             }`}
+            aria-label="Create a new list note"
           >
             <List className="mr-2 h-5 w-5" />
             <span>New List</span>
           </button>
-          
-          <button 
+
+          <button
             onClick={() => handleNoteTypeChange('drawing')}
-            className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
+            className={`flex items-center px-4 py-2 rounded-lg transition-all hover:scale-[1.03] ${
               darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
             }`}
+            aria-label="Create a new drawing note"
           >
             <PenTool className="mr-2 h-5 w-5" />
             <span>Drawing</span>
           </button>
-          
-          <button 
+
+          <button
             onClick={() => handleNoteTypeChange('image')}
-            className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
+            className={`flex items-center px-4 py-2 rounded-lg transition-all hover:scale-[1.03] ${
               darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
             }`}
+            aria-label="Create a new image note"
           >
             <Camera className="mr-2 h-5 w-5" />
             <span>Image</span>
@@ -224,201 +299,216 @@ export default function CreateArea({ onAdd, darkMode }) {
       )}
 
       <form
+        ref={formRef}
         onSubmit={submitNote}
         className={`
-          p-4 rounded-xl shadow-xl transition-all duration-300 ease-in-out 
-          ${darkMode ? 'border border-gray-700' : 'border border-gray-200'}
+          p-4 rounded-2xl shadow-xl transition-all duration-300 ease-in-out overflow-hidden
+          ${darkMode ? 'border border-gray-700 text-gray-100' : 'border border-gray-200 text-gray-800'}
           ${isExpanded ? 'scale-100' : 'scale-95 hover:scale-100'}
         `}
-        style={{ 
+        style={{
           backgroundColor: note.color,
-          boxShadow: isExpanded ? 
+          boxShadow: isExpanded ?
             (darkMode ? '0 10px 25px -5px rgba(0, 0, 0, 0.5)' : '0 10px 25px -5px rgba(0, 0, 0, 0.1)') : 'none'
         }}
       >
         {isExpanded && (
-          <div className="flex justify-between items-center mb-3">
-            <input
-              name="title"
-              onChange={handleChange}
-              value={note.title}
-              placeholder="Title"
-              className={`
-                flex-grow p-2 text-xl font-semibold focus:outline-none rounded-lg
-                ${formatting.bold ? 'font-bold' : ''} 
-                ${formatting.italic ? 'italic' : ''} 
-                ${formatting.underline ? 'underline' : ''}
-                ${darkMode ? 'bg-gray-800/50 text-white placeholder-gray-400' : 'bg-white/50 text-gray-800 placeholder-gray-500'}
-              `}
-            />
-            <button
-              type="button"
-              onClick={togglePin}
-              className={`
-                ml-3 p-2 rounded-full transition-all
-                ${note.pinned ? 'text-amber-500 bg-amber-500/10' : 'text-gray-400 hover:bg-gray-200/50'}
-                ${darkMode && !note.pinned ? 'hover:bg-gray-700' : ''}
-              `}
-              aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
-            >
-              <Pin className="h-5 w-5" />
-            </button>
-          </div>
-        )}
-        
-        {/* Content area - dynamic based on note type */}
-        {note.type === 'note' && (
-          <textarea
-            name="content"
-            onFocus={handleFocus}
-            onChange={handleChange}
-            value={note.content}
-            placeholder={isExpanded ? "Start writing..." : "Take a note..."}
-            rows={isExpanded ? 4 : 1}
-            className={`
-              w-full p-3 focus:outline-none rounded-lg transition-all
-              ${formatting.bold ? 'font-bold' : ''} 
-              ${formatting.italic ? 'italic' : ''} 
-              ${formatting.underline ? 'underline' : ''}
-              ${darkMode ? 'bg-gray-800/50 text-white placeholder-gray-400' : 'bg-white/50 text-gray-800 placeholder-gray-500'}
-            `}
-          />
-        )}
-        
-        {note.type === 'list' && (
-          <div className="space-y-2 py-2">
-            {note.listItems.map((item) => (
-              <div key={item.id} className="flex items-start">
-                <input
-                  type="checkbox"
-                  checked={item.checked}
-                  onChange={() => toggleCheckItem(item.id)}
-                  className={`
-                    mt-1.5 mr-2 h-5 w-5 rounded 
-                    ${darkMode ? 'text-blue-400 bg-gray-700 border-gray-600' : 'text-blue-500 border-gray-300'}
-                  `}
+          <>
+            <div className="flex justify-between items-center mb-3">
+              <input
+                name="title"
+                onChange={handleChange}
+                value={note.title}
+                placeholder="Title"
+                className={`
+                  flex-grow p-2 text-xl font-semibold focus:outline-none rounded-lg bg-transparent
+                  ${formatting.bold ? 'font-bold' : ''}
+                  ${formatting.italic ? 'italic' : ''}
+                  ${formatting.underline ? 'underline' : ''}
+                  ${darkMode ? 'text-white placeholder-gray-400' : 'text-gray-800 placeholder-gray-500'}
+                `}
+              />
+              <button
+                type="button"
+                onClick={togglePin}
+                className={`
+                  ml-3 p-2 rounded-full transition-all transform hover:scale-110
+                  ${note.pinned ? 'text-amber-500' : 'text-gray-400'}
+                `}
+                aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
+              >
+                <Pin className="h-5 w-5" fill={note.pinned ? 'currentColor' : 'none'} />
+              </button>
+            </div>
+
+            {/* Text content for note and drawing types */}
+            {(note.type === 'note' || note.type === 'drawing' || note.type === 'image') && (
+              <textarea
+                name="content"
+                onChange={handleChange}
+                value={note.content}
+                placeholder="Add your notes here..."
+                rows={note.type === 'drawing' || note.type === 'image' ? 2 : 4}
+                className={`
+                  w-full p-3 mb-3 focus:outline-none rounded-lg transition-all bg-transparent
+                  ${formatting.bold ? 'font-bold' : ''}
+                  ${formatting.italic ? 'italic' : ''}
+                  ${formatting.underline ? 'underline' : ''}
+                  ${darkMode ? 'text-white placeholder-gray-400' : 'text-gray-800 placeholder-gray-500'}
+                `}
+              />
+            )}
+
+            {note.type === 'list' && (
+              <DragDropContext onDragEnd={handleDragEnd}>
+                <Droppable droppableId="listItems">
+                  {(provided) => (
+                    <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2 py-2">
+                      {note.listItems.map((item, index) => (
+                        <Draggable key={item.id} draggableId={item.id.toString()} index={index}>
+                          {(provided, snapshot) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              {...provided.dragHandleProps}
+                              className={`flex items-start bg-opacity-20 rounded-lg p-1.5 transition
+                                ${snapshot.isDragging ? (darkMode ? 'bg-gray-700' : 'bg-blue-100') : ''}`}
+                            >
+                              <div className="flex items-center flex-grow">
+                                <button
+                                  onClick={() => toggleCheckItem(item.id)}
+                                  className={`
+                                    mt-1.5 mr-2 flex items-center justify-center w-5 h-5 rounded-full border-2 transition-colors
+                                    ${item.checked ? 'bg-green-500 border-green-500' : darkMode ? 'border-gray-400' : 'border-gray-400'}
+                                  `}
+                                  aria-label={item.checked ? 'Uncheck item' : 'Check item'}
+                                  type="button"
+                                >
+                                  {item.checked && <CheckCircle size={16} className="text-white" strokeWidth={2.5} />}
+                                </button>
+                                <input
+                                  type="text"
+                                  value={item.text}
+                                  onChange={(e) => updateListItem(item.id, e.target.value)}
+                                  placeholder="List item"
+                                  className={`
+                                    flex-grow p-2 focus:outline-none rounded-lg bg-transparent
+                                    ${item.checked ? 'line-through text-gray-500' : ''}
+                                    ${darkMode ? 'text-white' : 'text-gray-800'}
+                                  `}
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeListItem(item.id)}
+                                className="p-2 ml-2 text-gray-500 rounded-full hover:bg-red-500/20 hover:text-red-500 transition-colors"
+                                aria-label="Remove item"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+                      <button
+                        type="button"
+                        onClick={addListItem}
+                        className={`
+                          mt-2 px-4 py-2.5 rounded-lg flex items-center justify-center w-full transition-all
+                          ${darkMode ? 'text-gray-300 hover:bg-gray-700/50' : 'text-gray-500 hover:bg-gray-200/50'}
+                        `}
+                      >
+                        <Plus className="mr-2 h-5 w-5" />
+                        <span>Add item</span>
+                      </button>
+                    </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
+            )}
+
+            {note.type === 'drawing' && (
+              <div className="mb-4">
+                <DrawingCanvas 
+                  onSave={handleDrawingSave} 
+                  darkMode={darkMode} 
+                  initialDrawingData={note.drawingDataUrl} 
+                  drawingColor={note.drawingColor} 
                 />
-                <input
-                  type="text"
-                  value={item.text}
-                  onChange={(e) => updateListItem(item.id, e.target.value)}
-                  placeholder="List item"
-                  className={`
-                    flex-grow p-2 focus:outline-none rounded-lg
-                    ${item.checked ? 'line-through text-gray-500' : ''}
-                    ${darkMode ? 'bg-gray-800/50 text-white' : 'bg-white/50 text-gray-800'}
-                  `}
+                <div className="mt-4">
+                  <div className="mb-2">
+                    <span className="text-sm font-semibold">Drawing Color:</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {colors.map((color, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => setNote(prev => ({ ...prev, drawingColor: color.bg }))}
+                        className={`
+                          w-6 h-6 rounded-full border-2 transition-transform
+                          ${note.drawingColor === color.bg ? 'scale-110 ring-2 ring-offset-2 ring-blue-500' : 'scale-100 hover:scale-110'}
+                        `}
+                        style={{
+                          backgroundColor: color.bg,
+                          borderColor: color.border
+                        }}
+                        aria-label={`Select drawing color ${color.bg}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {note.type === 'image' && (
+              <div className="mb-4">
+                <ImageUpload 
+                  onUpload={handleImageUpload} 
+                  darkMode={darkMode} 
+                  initialImage={note.imageUrl}
                 />
               </div>
-            ))}
-            <button
-              type="button"
-              onClick={addListItem}
-              className={`
-                mt-2 px-4 py-2 rounded-lg flex items-center
-                ${darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-200'}
-              `}
-            >
-              <span>+ Add item</span>
-            </button>
-          </div>
-        )}
-        
-        {note.type === 'drawing' && (
-          <div className="space-y-4">
-            <div className={`
-              h-40 rounded-lg border-2 border-dashed flex items-center justify-center
-              ${darkMode ? 'bg-gray-800/50 border-gray-600' : 'bg-white/50 border-gray-300'}
-            `}>
-              <button
-                type="button"
-                className={`
-                  px-4 py-2 rounded-lg flex items-center
-                  ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}
-                `}
-              >
-                <PenTool className="mr-2 h-5 w-5" />
-                <span>Start drawing</span>
-              </button>
+            )}
+
+            <div className="mt-4 space-y-4">
+              <div>
+                <div className="mb-2">
+                  <span className="text-sm font-semibold">Background Color:</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {colors.map((color, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() => handleColorChange(color.bg)}
+                      className={`
+                        w-8 h-8 rounded-full border-2 transition-transform
+                        ${note.color === color.bg ? 'scale-110 ring-2 ring-offset-2 ring-blue-500' : 'scale-100 hover:scale-110'}
+                      `}
+                      style={{
+                        backgroundColor: color.bg,
+                        borderColor: color.border
+                      }}
+                      aria-label={`Select color ${color.bg}`}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
-            <textarea
-              name="content"
-              onChange={handleChange}
-              value={note.content}
-              placeholder="Add a description..."
-              rows={2}
-              className={`
-                w-full p-3 focus:outline-none rounded-lg
-                ${darkMode ? 'bg-gray-800/50 text-white' : 'bg-white/50 text-gray-800'}
-              `}
-            />
-          </div>
-        )}
-        
-        {note.type === 'image' && (
-          <div className="space-y-4">
-            <div className={`
-              h-40 rounded-lg border-2 border-dashed flex items-center justify-center
-              ${darkMode ? 'bg-gray-800/50 border-gray-600' : 'bg-white/50 border-gray-300'}
-            `}>
-              <button
-                type="button"
-                className={`
-                  px-4 py-2 rounded-lg flex items-center
-                  ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}
-                `}
-              >
-                <Camera className="mr-2 h-5 w-5" />
-                <span>Upload image</span>
-              </button>
-            </div>
-            <textarea
-              name="content"
-              onChange={handleChange}
-              value={note.content}
-              placeholder="Add a description..."
-              rows={2}
-              className={`
-                w-full p-3 focus:outline-none rounded-lg
-                ${darkMode ? 'bg-gray-800/50 text-white' : 'bg-white/50 text-gray-800'}
-              `}
-            />
-          </div>
-        )}
-        
-        {isExpanded && (
-          <div className="mt-4">
-            <div className="flex flex-wrap gap-2 mb-4">
-              {colors.map((color, index) => (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={() => handleColorChange(color.bg)}
-                  className={`
-                    w-8 h-8 rounded-full border-2 transition-transform
-                    ${note.color === color.bg ? 'scale-110 ring-2 ring-offset-2 ring-blue-500' : 'scale-100 hover:scale-110'}
-                  `}
-                  style={{ 
-                    backgroundColor: color.bg,
-                    borderColor: color.border
-                  }}
-                  aria-label={`Select color ${color.bg}`}
-                />
-              ))}
-            </div>
-            
-            <div className="flex justify-between items-center pt-2 border-t border-gray-200/50">
-              <div className="flex space-x-2">
-                {/* Formatting buttons - only for text notes */}
+
+            <div className="flex justify-between items-center pt-4 border-t border-gray-200/30">
+              <div className="flex space-x-1">
                 {note.type === 'note' && (
                   <>
                     <button
                       type="button"
                       onClick={() => toggleFormatting('bold')}
                       className={`
-                        p-2 rounded-lg transition-colors
-                        ${formatting.bold ? 'bg-blue-500/10 text-blue-500' : 'text-gray-500 hover:bg-gray-200/50'}
-                        ${darkMode && !formatting.bold ? 'hover:bg-gray-700' : ''}
+                        p-2 rounded-lg transition-colors transform hover:scale-110
+                        ${formatting.bold ? 'bg-blue-500/10 text-blue-500' : 'text-gray-500'}
+                        ${darkMode && !formatting.bold ? 'hover:bg-gray-700/50' : ''}
                       `}
                       aria-label="Bold"
                     >
@@ -428,9 +518,9 @@ export default function CreateArea({ onAdd, darkMode }) {
                       type="button"
                       onClick={() => toggleFormatting('italic')}
                       className={`
-                        p-2 rounded-lg transition-colors
-                        ${formatting.italic ? 'bg-blue-500/10 text-blue-500' : 'text-gray-500 hover:bg-gray-200/50'}
-                        ${darkMode && !formatting.italic ? 'hover:bg-gray-700' : ''}
+                        p-2 rounded-lg transition-colors transform hover:scale-110
+                        ${formatting.italic ? 'bg-blue-500/10 text-blue-500' : 'text-gray-500'}
+                        ${darkMode && !formatting.italic ? 'hover:bg-gray-700/50' : ''}
                       `}
                       aria-label="Italic"
                     >
@@ -440,9 +530,9 @@ export default function CreateArea({ onAdd, darkMode }) {
                       type="button"
                       onClick={() => toggleFormatting('underline')}
                       className={`
-                        p-2 rounded-lg transition-colors
-                        ${formatting.underline ? 'bg-blue-500/10 text-blue-500' : 'text-gray-500 hover:bg-gray-200/50'}
-                        ${darkMode && !formatting.underline ? 'hover:bg-gray-700' : ''}
+                        p-2 rounded-lg transition-colors transform hover:scale-110
+                        ${formatting.underline ? 'bg-blue-500/10 text-blue-500' : 'text-gray-500'}
+                        ${darkMode && !formatting.underline ? 'hover:bg-gray-700/50' : ''}
                       `}
                       aria-label="Underline"
                     >
@@ -450,33 +540,33 @@ export default function CreateArea({ onAdd, darkMode }) {
                     </button>
                   </>
                 )}
-                
-                {/* More options dropdown */}
+
                 <div className="relative" ref={moreOptionsRef}>
                   <button
                     type="button"
                     onClick={toggleMoreOptions}
                     className={`
-                      p-2 rounded-lg flex items-center transition-colors
-                      ${moreOptionsOpen ? 'bg-blue-500/10 text-blue-500' : 'text-gray-500 hover:bg-gray-200/50'}
-                      ${darkMode && !moreOptionsOpen ? 'hover:bg-gray-700' : ''}
+                      p-2 rounded-lg flex items-center transition-colors transform hover:scale-110
+                      ${moreOptionsOpen ? 'bg-blue-500/10 text-blue-500' : 'text-gray-500'}
+                      ${darkMode && !moreOptionsOpen ? 'hover:bg-gray-700/50' : ''}
                     `}
                     aria-label="More options"
                   >
                     <MoreHorizontal className="h-5 w-5" />
-                    <ChevronDown className={`h-4 w-4 ml-1 transition-transform ${moreOptionsOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`h-4 w-4 ml-0.5 transition-transform ${moreOptionsOpen ? 'rotate-180' : ''}`} />
                   </button>
-                  
+
                   {moreOptionsOpen && (
                     <div className={`
-                      absolute bottom-full mb-2 left-0 w-56 rounded-lg shadow-lg z-50
-                      ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}
+                      absolute bottom-full mb-2 left-0 w-56 rounded-xl shadow-lg z-50 overflow-hidden
+                      ${darkMode ? 'bg-gray-800 border border-gray-700 text-gray-200' : 'bg-white border border-gray-200 text-gray-700'}
+                      transition-all duration-200 origin-bottom-left
                     `}>
                       <button
                         type="button"
                         className={`
-                          w-full text-left px-4 py-2 flex items-center hover:bg-gray-100
-                          ${darkMode ? 'hover:bg-gray-700' : ''}
+                          w-full text-left px-4 py-3 flex items-center transition-colors
+                          ${darkMode ? 'hover:bg-gray-700/80' : 'hover:bg-gray-100'}
                         `}
                       >
                         <Clock className="mr-3 h-5 w-5 text-gray-500" />
@@ -485,45 +575,41 @@ export default function CreateArea({ onAdd, darkMode }) {
                       <button
                         type="button"
                         className={`
-                          w-full text-left px-4 py-2 flex items-center hover:bg-gray-100
-                          ${darkMode ? 'hover:bg-gray-700' : ''}
+                          w-full text-left px-4 py-3 flex items-center transition-colors
+                          ${darkMode ? 'hover:bg-gray-700/80' : 'hover:bg-gray-100'}
                         `}
                       >
                         <User className="mr-3 h-5 w-5 text-gray-500" />
                         <span>Collaborator</span>
                       </button>
-                      <button
-                        type="button"
-                        className={`
-                          w-full text-left px-4 py-2 flex items-center hover:bg-gray-100
-                          ${darkMode ? 'hover:bg-gray-700' : ''}
-                        `}
-                      >
-                        <ImageIcon className="mr-3 h-5 w-5 text-gray-500" />
-                        <span>Add Image</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={`
-                          w-full text-left px-4 py-2 flex items-center hover:bg-gray-100
-                          ${darkMode ? 'hover:bg-gray-700' : ''}
-                        `}
-                      >
-                        <CheckSquare className="mr-3 h-5 w-5 text-gray-500" />
-                        <span>Add Checkbox</span>
-                      </button>
                     </div>
                   )}
                 </div>
               </div>
-              
+
               <div className="flex space-x-2">
                 <button
                   type="button"
-                  onClick={() => setIsExpanded(false)}
+                  onClick={() => {
+                    setNote({
+                      title: '',
+                      content: '',
+                      color: darkMode ? '#1e293b' : '#ffffff',
+                      pinned: false,
+                      type: 'note',
+                      listItems: [],
+                      drawingDataUrl: null,
+                      imageData: null,
+                      imageUrl: null,
+                      drawingColor: '#000000',
+                    });
+                    setIsExpanded(false);
+                    setMoreOptionsOpen(false);
+                    setFormatting({ bold: false, italic: false, underline: false });
+                  }}
                   className={`
-                    p-2 rounded-lg transition-colors text-gray-500 hover:bg-gray-200/50
-                    ${darkMode ? 'hover:bg-gray-700' : ''}
+                    p-2 rounded-lg transition-colors text-gray-500 transform hover:scale-110
+                    ${darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-gray-200/50'}
                   `}
                   aria-label="Close"
                 >
@@ -531,19 +617,16 @@ export default function CreateArea({ onAdd, darkMode }) {
                 </button>
                 <button
                   type="submit"
-                  disabled={
-                    // FIXED: Only disable for text notes without content
-                    note.type === 'note' ? (note.title.trim() === '' && note.content.trim() === '') : 
-                    note.type === 'list' ? note.listItems.every(item => item.text.trim() === '') : 
-                    false
-                  }
+                  disabled={!isNoteValid}
                   className={`
-                    px-4 py-2 rounded-lg flex items-center space-x-2 transition-all
-                    ${(note.type === 'note' && (note.title || note.content)) || 
-                      (note.type === 'list' && !note.listItems.every(item => item.text.trim() === '')) ? 
-                      'bg-blue-500 hover:bg-blue-600 text-white' : 
-                      'bg-gray-200 text-gray-400 cursor-not-allowed'}
-                    ${darkMode && !(note.title || note.content) ? 'bg-gray-700' : ''}
+                    px-4 py-2 rounded-lg flex items-center space-x-2 transition-all transform hover:scale-[1.03]
+                    ${
+                      isNoteValid
+                        ? 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md'
+                        : (darkMode 
+                            ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                            : 'bg-gray-200 text-gray-400 cursor-not-allowed')
+                    }
                   `}
                   aria-label="Add note"
                 >
@@ -551,6 +634,39 @@ export default function CreateArea({ onAdd, darkMode }) {
                   <span>Add</span>
                 </button>
               </div>
+            </div>
+          </>
+        )}
+
+        {/* Collapsed view */}
+        {!isExpanded && (
+          <div 
+            onClick={() => setIsExpanded(true)}
+            className="flex items-center cursor-pointer"
+          >
+            <input
+              placeholder={`Take a ${note.type} note...`}
+              className={`
+                w-full py-3 px-2 focus:outline-none bg-transparent
+                ${darkMode ? 'text-gray-300 placeholder-gray-400' : 'text-gray-600 placeholder-gray-500'}
+              `}
+              readOnly
+            />
+            <div className="flex space-x-1">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePin();
+                }}
+                className={`
+                  p-2 rounded-full transition-all
+                  ${note.pinned ? 'text-amber-500' : 'text-gray-400'}
+                `}
+                aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
+              >
+                <Pin className="h-5 w-5" fill={note.pinned ? 'currentColor' : 'none'} />
+              </button>
             </div>
           </div>
         )}
