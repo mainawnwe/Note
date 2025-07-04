@@ -8,8 +8,6 @@ import ImageNoteCardDisplay from './ImageNoteCardDisplay';
 import { Pin, Save, XCircle, Trash2 } from 'lucide-react';
 
 function NoteDetailsModal({ isOpen, onClose, note, darkMode, searchTerm, onUpdate, onDelete }) {
-  if (!note) return null;
-
   const {
     id,
     title: initialTitle,
@@ -20,7 +18,7 @@ function NoteDetailsModal({ isOpen, onClose, note, darkMode, searchTerm, onUpdat
     imageData: initialImageData,
     pinned: initialPinned,
     color: initialColor,
-  } = note;
+  } = note || {};
 
   const [title, setTitle] = useState(initialTitle || '');
   const [content, setContent] = useState(initialContent || '');
@@ -81,6 +79,7 @@ function NoteDetailsModal({ isOpen, onClose, note, darkMode, searchTerm, onUpdat
   }, [initialColor, darkMode]);
 
   const fileInputRef = useRef(null);
+
 
   const colors = [
     { bg: darkMode ? '#1e293b' : '#ffffff', border: darkMode ? '#334155' : '#e2e8f0' },
@@ -192,14 +191,51 @@ function NoteDetailsModal({ isOpen, onClose, note, darkMode, searchTerm, onUpdat
             />
           </div>
         ) : type === 'image' ? (
-          <ImageNoteCardDisplay
-            imageData={imageData}
-            content={content}
-            textColor={darkMode ? 'text-white' : 'text-gray-900'}
-            isEditing={true}
-            onImageChange={handleImageChange}
-            searchTerm={searchTerm}
-          />
+          <>
+            <ImageNoteCardDisplay
+              imageData={imageData}
+              content={content}
+              textColor={darkMode ? 'text-white' : 'text-gray-900'}
+              isEditing={true}
+              onImageChange={handleImageChange}
+              searchTerm={searchTerm}
+            />
+            <button
+              onClick={() => fileInputRef.current.click()}
+              className="mt-2 p-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+            >
+              Add Image
+            </button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={(e) => {
+                const files = Array.from(e.target.files);
+                const readers = files.map(file => {
+                  return new Promise((resolve, reject) => {
+                    if (!file.type.match('image.*')) {
+                      reject('Invalid file type');
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = (ev) => resolve(ev.target.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                  });
+                });
+                Promise.all(readers).then(images => {
+                  setImageData(prev => [...prev, ...images]);
+                }).catch(() => {
+                  alert('Some files were not valid images.');
+                });
+                e.target.value = null;
+              }}
+              accept="image/*"
+              className="hidden"
+              multiple
+              aria-hidden="true"
+            />
+          </>
         ) : (
           <textarea
             value={content}
@@ -254,15 +290,12 @@ function NoteDetailsModal({ isOpen, onClose, note, darkMode, searchTerm, onUpdat
                 key={index}
                 type="button"
                 onClick={() => setNoteColor(colorOption.bg)}
-                className={\`
-                  w-8 h-8 rounded-full border-2 transition-transform
-                  \${noteColor === colorOption.bg ? 'scale-110 ring-2 ring-offset-2 ring-blue-500' : 'scale-100 hover:scale-110'}
-                \`}
+              className={"w-8 h-8 rounded-full border-2 transition-transform " + (noteColor === colorOption.bg ? "scale-110 ring-2 ring-offset-2 ring-blue-500" : "scale-100 hover:scale-110")}
                 style={{
                   backgroundColor: colorOption.bg,
                   borderColor: colorOption.border
                 }}
-                aria-label={\`Select color \${colorOption.bg}\`}
+                aria-label={"Select color " + colorOption.bg}
               />
             ))}
           </div>
