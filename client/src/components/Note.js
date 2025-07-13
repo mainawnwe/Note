@@ -5,6 +5,7 @@ import SimpleNoteDisplay from './SimpleNoteDisplay';
 import DrawingNoteCardDisplay from './DrawingNoteCardDisplay';
 import DrawingCanvas from './DrawingCanvas';
 import ImageNoteCardDisplay from './ImageNoteCardDisplay';
+import LabelDisplay from './LabelDisplay';
 import NoteDetailsModal from './NoteDetailsModal';
 
 function Note(props) {
@@ -96,8 +97,11 @@ function Note(props) {
   const togglePin = () => {
     const newPinned = !isPinned;
     setIsPinned(newPinned);
-    onUpdate(id, { pinned: newPinned ? 1 : 0 });
+    // Include existing labels in the update to preserve them
+    onUpdate(id, { pinned: newPinned ? 1 : 0, labels: props.labels || [] });
   };
+
+  const labelsToShow = detailsNote && detailsNote.labels ? detailsNote.labels : (props.labels || []);
 
   return (
     <>
@@ -168,6 +172,20 @@ function Note(props) {
               searchTerm={searchTerm}
             />
           )}
+          {/* Display labels */}
+          {labelsToShow && labelsToShow.length > 0 && (
+            <div className="mb-1 flex flex-wrap gap-1">
+              {labelsToShow.map(label => (
+                <span
+                  key={label.id || label}
+                  className="inline-block text-white text-xs font-semibold px-2 py-1 rounded-full select-none"
+                  style={{ backgroundColor: label.color || '#6b7280' }}
+                >
+                  {label.name || label}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="mt-auto pt-3 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
             <p className={`text-xs ${getTextColor(color).replace('text-gray-800', 'text-gray-600').replace('text-gray-300', 'text-gray-500')}`}>
               {formatDate(createdAt)}
@@ -211,17 +229,39 @@ function Note(props) {
     });
   }
 
-  function getTextColor(bgColor) {
-    if (!bgColor || bgColor === '#ffffff') return darkMode ? 'text-gray-700' : 'text-gray-900';
+  // Calculate relative luminance of a color
+  function getLuminance(r, g, b) {
+    const a = [r, g, b].map((v) => {
+      v /= 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
+  }
 
-    const hex = bgColor.replace('#', '');
+  // Calculate contrast ratio between two luminances
+  function getContrastRatio(lum1, lum2) {
+    const lighter = Math.max(lum1, lum2);
+    const darker = Math.min(lum1, lum2);
+    return (lighter + 0.05) / (darker + 0.05);
+  }
+
+  function getTextColor(bgColor) {
+    if (!bgColor) {
+      return 'text-black';
+    }
+
+    const c = bgColor.charAt(0) === '#' ? bgColor.substring(1) : bgColor;
+    const hex = c.length === 3 ? c.split('').map(ch => ch + ch).join('') : c;
     const r = parseInt(hex.substring(0, 2), 16);
     const g = parseInt(hex.substring(2, 4), 16);
     const b = parseInt(hex.substring(4, 6), 16);
 
-    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-
-    return brightness > 150 ? 'text-gray-900' : 'text-gray-100';
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    // Use white text only if color is black or very dark (luminance < 0.05)
+    if (luminance < 0.05) {
+      return 'text-white';
+    }
+    return 'text-black';
   }
 }
 

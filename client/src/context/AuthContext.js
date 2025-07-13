@@ -8,12 +8,6 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Clear token and user on mount to force login page for testing
-        localStorage.removeItem('token');
-        setUser(null);
-        setLoading(false);
-
-        /*
         const token = localStorage.getItem('token');
         console.log('AuthContext: token from localStorage:', token);
         if (token) {
@@ -23,9 +17,12 @@ export const AuthProvider = ({ children }) => {
             .then(response => {
                 console.log('AuthContext: profile response:', response.data);
                 const userData = response.data;
-                if (userData.profile_picture) {
-                    userData.profile_picture = userData.profile_picture.replace('/api/lib/uploads/', '/uploads/');
+            if (userData.profile_picture) {
+                // Fix profile_picture path to match actual uploads URL
+                if (!userData.profile_picture.startsWith('/uploads/')) {
+                    userData.profile_picture = '/uploads/' + userData.profile_picture;
                 }
+            }
                 setUser(userData);
             })
             .catch((error) => {
@@ -36,13 +33,33 @@ export const AuthProvider = ({ children }) => {
         } else {
             setLoading(false);
         }
-        */
     }, []);
 
     const login = async (credentials) => {
-        const response = await axios.post('http://localhost:8000/auth/login.php', credentials);
+        // Rename email field to identifier for backend compatibility
+        const payload = {
+            identifier: credentials.email,
+            password: credentials.password
+        };
+        const response = await axios.post('http://localhost:8000/auth/login.php', payload);
         localStorage.setItem('token', response.data.token);
-        setUser(response.data.user);
+
+        // Fetch full profile after login to ensure user data is complete
+        try {
+            const profileResponse = await axios.get('http://localhost:8000/auth/profile.php', {
+                headers: { Authorization: `Bearer ${response.data.token}` }
+            });
+            const userData = profileResponse.data;
+            if (userData.profile_picture) {
+                if (!userData.profile_picture.startsWith('/uploads/')) {
+                    userData.profile_picture = '/uploads/' + userData.profile_picture;
+                }
+            }
+            setUser(userData);
+        } catch (error) {
+            console.error('AuthContext: profile fetch error after login:', error);
+            setUser(response.data.user); // fallback to user from login response
+        }
     };
 
     const signup = async (userData) => {
@@ -56,12 +73,17 @@ export const AuthProvider = ({ children }) => {
             }
         }
         try {
-            const response = await axios.post('http://localhost:8000/auth/signup.php', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+            const response = await fetch('http://localhost:8000/auth/signup.php', {
+                method: 'POST',
+                body: formData,
             });
-            return response.data;
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.message || 'Signup failed');
+            }
+            return await response.json();
         } catch (error) {
-            console.error('Signup error response:', error.response);
+            console.error('Signup error response:', error);
             throw error;
         }
     };

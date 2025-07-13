@@ -45,6 +45,8 @@ export default function SettingsMenu({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const navigate = useNavigate();
+
   return (
     <>
       <div className="relative">
@@ -124,6 +126,17 @@ export default function SettingsMenu({
               >
                 <Key className="h-5 w-5 mr-3 flex-shrink-0" />
                 <span className="font-medium">Keyboard shortcuts</span>
+              </button>
+              <button
+                className={`flex items-center w-full px-4 py-3 transition-colors duration-150 ${darkMode ? 'hover:bg-gray-700/50 text-gray-300' : 'hover:bg-amber-50 text-gray-700'
+                  }`}
+                onClick={() => {
+                  setSettingsOpen(false);
+                  navigate('/app-downloads');
+                }}
+              >
+                <Settings className="h-5 w-5 mr-3 flex-shrink-0" />
+                <span className="font-medium">App Downloads</span>
               </button>
             </div>
           </div>

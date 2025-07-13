@@ -20,7 +20,7 @@ function Signup() {
 
     const handleChange = (e) => {
         const { name, value, files } = e.target;
-        if (name === 'profilePicture') {
+        if (name === 'profile_picture') {
             setFormData(prev => ({ ...prev, profilePicture: files[0] }));
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
@@ -48,6 +48,11 @@ function Signup() {
             formDataToSend.append('bio', formData.bio);
             if (formData.profilePicture) {
                 formDataToSend.append('profile_picture', formData.profilePicture);
+            }
+
+            // Debug log FormData entries
+            for (let pair of formDataToSend.entries()) {
+                console.log(pair[0] + ':', pair[1]);
             }
 
             await signup(formDataToSend);
@@ -163,7 +168,7 @@ function Signup() {
                         <input
                             type="file"
                             id="profilePicture"
-                            name="profilePicture"
+                            name="profile_picture"
                             accept="image/*"
                             onChange={handleChange}
                             className="w-full"

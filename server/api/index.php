@@ -1,5 +1,7 @@
 <?php
 
+include_once __DIR__ . '/static_uploads.php';
+
 // --- CORS Configuration ---
 header("Access-Control-Allow-Origin: http://localhost:3000");
 header("Content-Type: application/json; charset=UTF-8");
@@ -76,7 +78,52 @@ function handleGet($pdo) {
                 echo json_encode(['error' => true, 'message' => 'Note not found']);
             }
         } else {
-            $stmt = $pdo->query("SELECT id, title, content, type, created_at AS createdAt, color, pinned, labels, image_url, drawing_data, status, reminder FROM notes ORDER BY created_at DESC");
+            $query = "SELECT id, title, content, type, created_at AS createdAt, color, pinned, image_url, drawing_data, status, reminder FROM notes";
+            $params = [];
+            $conditions = [];
+
+            if (isset($_GET['status'])) {
+                $conditions[] = "status = :status";
+                $params[':status'] = $_GET['status'];
+            }
+
+            if (isset($_GET['label'])) {
+                $label = $_GET['label'];
+                $query = "SELECT n.id, n.title, n.content, n.type, n.created_at AS createdAt, n.color, n.pinned, n.image_url, n.drawing_data, n.status, n.reminder
+                          FROM notes n
+                          JOIN note_labels nl ON n.id = nl.note_id
+                          JOIN labels l ON nl.label_id = l.id
+                          WHERE l.name = :label";
+                $params = [':label' => $label];
+
+                if (isset($_GET['type'])) {
+                    $query .= " AND n.type = :type";
+                    $params[':type'] = $_GET['type'];
+                }
+            }
+
+            if (isset($_GET['type']) && !isset($_GET['label'])) {
+                $conditions[] = "type = :type";
+                $params[':type'] = $_GET['type'];
+            }
+
+            if (count($conditions) > 0 && !isset($_GET['label'])) {
+                $query .= " WHERE " . implode(" AND ", $conditions);
+            }
+
+            $query .= " ORDER BY created_at DESC";
+
+            error_log('GET parameters: ' . json_encode($_GET));
+            error_log('SQL Query: ' . $query);
+            error_log('Query Params: ' . json_encode($params));
+
+            // Additional debug to verify type param value
+            if (isset($_GET['type'])) {
+                error_log('Type filter received: ' . $_GET['type']);
+            }
+
+            $stmt = $pdo->prepare($query);
+            $stmt->execute($params);
             $notes = $stmt->fetchAll();
 
             // Fetch list items for each note if type is list
@@ -89,6 +136,13 @@ function handleGet($pdo) {
                 } else {
                     $note['listItems'] = [];
                 }
+
+                // Fetch assigned labels for the note
+                $stmtLabels = $pdo->prepare("SELECT l.id, l.name, l.color FROM labels l JOIN note_labels nl ON l.id = nl.label_id WHERE nl.note_id = :note_id");
+                $stmtLabels->execute([':note_id' => $note['id']]);
+                $fetchedLabels = $stmtLabels->fetchAll();
+                error_log("Note ID {$note['id']} labels fetched: " . json_encode($fetchedLabels));
+                $note['labels'] = $fetchedLabels ?: [];
             }
 
             http_response_code(200);
@@ -113,73 +167,101 @@ function handlePost($pdo) {
     }
 
     $title = $data['title'] ?? '';
-        $content = $data['content'] ?? '';
-        $type = $data['type'] ?? 'note';
+    $content = $data['content'] ?? '';
+    $type = $data['type'] ?? 'note';
 
-        // Debug log type value
-        error_log('Note type: ' . $type);
+    // Debug log type value
+    error_log('Note type: ' . $type);
 
-        $color = $data['color'] ?? '#ffffff';
-        $pinned = isset($data['pinned']) && $data['pinned'] ? 1 : 0;
-        $listItems = $data['listItems'] ?? null;
-        $drawing_data = $data['drawing_data'] ?? null;
+    $color = $data['color'] ?? '#ffffff';
+    $pinned = isset($data['pinned']) && $data['pinned'] ? 1 : 0;
+    $listItems = $data['listItems'] ?? null;
+    $drawing_data = $data['drawing_data'] ?? null;
 
-        // For list type, concatenate listItems text into content string
-        if ($type === 'list' && is_array($listItems)) {
-            $content = implode("\n", array_map(function($item) {
-                return isset($item['text']) ? $item['text'] : '';
-            }, $listItems));
-        }
+    // For list type, concatenate listItems text into content string
+    if ($type === 'list' && is_array($listItems)) {
+        $content = implode("\n", array_map(function($item) {
+            return isset($item['text']) ? $item['text'] : '';
+        }, $listItems));
+    }
 
-        $labels = $data['labels'] ?? '';
-        $image_url = $data['image_url'] ?? '';
+    $labels = $data['labels'] ?? [];
+    $image_url = $data['image_url'] ?? '';
 
-        // Validation based on note type
-        if ($type === 'note' && (empty($title) && empty($content))) {
-            http_response_code(400);
-            echo json_encode(['error' => true, 'message' => 'Title or content required for text notes']);
-            return;
-        }
+    // Validation based on note type
+    if ($type === 'note' && (empty($title) && empty($content))) {
+        http_response_code(400);
+        echo json_encode(['error' => true, 'message' => 'Title or content required for text notes']);
+        return;
+    }
 
-        if ($type === 'list' && (!is_array($listItems) || count(array_filter($listItems, function($item) {
-            return isset($item['text']) && trim($item['text']) !== '';
-        })) === 0)) {
-            http_response_code(400);
-            echo json_encode(['error' => true, 'message' => 'At least one list item is required']);
-            return;
-        }
+    if ($type === 'list' && (!is_array($listItems) || count(array_filter($listItems, function($item) {
+        return isset($item['text']) && trim($item['text']) !== '';
+    })) === 0)) {
+        http_response_code(400);
+        echo json_encode(['error' => true, 'message' => 'At least one list item is required']);
+        return;
+    }
 
-        try {
-      $stmt = $pdo->prepare("INSERT INTO notes (title, content, type, color, pinned, labels, image_url, drawing_data, reminder) 
-                                    VALUES (:title, :content, :type, :color, :pinned, :labels, :image_url, :drawing_data, :reminder)");
-            $stmt->execute([
-                ':title' => $title,
-                ':content' => $content,
-                ':type' => $type,
-                ':color' => $color,
-                ':pinned' => $pinned,
-                ':labels' => $labels,
-                ':image_url' => $image_url,
-                ':drawing_data' => $drawing_data,
-                ':reminder' => $data['reminder'] ?? null
-            ]);
-            $id = $pdo->lastInsertId();
+    try {
+        $pdo->beginTransaction();
 
-            // Insert list items if type is list
-            if ($type === 'list' && is_array($listItems)) {
-                $position = 0;
-                $stmtItem = $pdo->prepare("INSERT INTO note_items (note_id, text, checked, position) VALUES (:note_id, :text, :checked, :position)");
-                foreach ($listItems as $item) {
-                    if (isset($item['text']) && trim($item['text']) !== '') {
-                        $stmtItem->execute([
-                            ':note_id' => $id,
-                            ':text' => $item['text'],
-                            ':checked' => isset($item['checked']) && $item['checked'] ? 1 : 0,
-                            ':position' => $position++
-                        ]);
-                    }
+        $stmt = $pdo->prepare("INSERT INTO notes (title, content, type, color, pinned, image_url, drawing_data, reminder) 
+                                VALUES (:title, :content, :type, :color, :pinned, :image_url, :drawing_data, :reminder)");
+        $stmt->execute([
+            ':title' => $title,
+            ':content' => $content,
+            ':type' => $type,
+            ':color' => $color,
+            ':pinned' => $pinned,
+            ':image_url' => $image_url,
+            ':drawing_data' => $drawing_data,
+            ':reminder' => $data['reminder'] ?? null
+        ]);
+        $id = $pdo->lastInsertId();
+
+        // Insert labels into note_labels join table
+        if (is_array($labels) && count($labels) > 0) {
+            $stmtLabel = $pdo->prepare("INSERT INTO note_labels (note_id, label_id) VALUES (:note_id, :label_id)");
+            foreach ($labels as $labelId) {
+                $labelIdInt = (int)$labelId;
+                if ($labelIdInt <= 0) {
+                    error_log("Invalid label ID (not positive integer): " . print_r($labelId, true));
+                    continue;
+                }
+                // Validate label ID exists
+                $stmtCheckLabel = $pdo->prepare("SELECT COUNT(*) FROM labels WHERE id = :label_id");
+                $stmtCheckLabel->execute([':label_id' => $labelIdInt]);
+                $count = $stmtCheckLabel->fetchColumn();
+                if ($count == 0) {
+                    error_log("Label ID $labelIdInt does not exist in labels table.");
+                    continue;
+                }
+                try {
+                    $stmtLabel->execute([':note_id' => $id, ':label_id' => $labelIdInt]);
+                } catch (PDOException $e) {
+                    error_log("Failed to insert label_id $labelIdInt for note_id $id: " . $e->getMessage());
                 }
             }
+        }
+
+        // Insert list items if type is list
+        if ($type === 'list' && is_array($listItems)) {
+            $position = 0;
+            $stmtItem = $pdo->prepare("INSERT INTO note_items (note_id, text, checked, position) VALUES (:note_id, :text, :checked, :position)");
+            foreach ($listItems as $item) {
+                if (isset($item['text']) && trim($item['text']) !== '') {
+                    $stmtItem->execute([
+                        ':note_id' => $id,
+                        ':text' => $item['text'],
+                        ':checked' => isset($item['checked']) && $item['checked'] ? 1 : 0,
+                        ':position' => $position++
+                    ]);
+                }
+            }
+        }
+
+        $pdo->commit();
 
         $stmt = $pdo->prepare("SELECT id, title, content, type, created_at AS createdAt, color, pinned, labels, image_url, drawing_data, status, reminder FROM notes WHERE id = :id");
         $stmt->bindParam(':id', $id, PDO::PARAM_INT);
@@ -196,9 +278,15 @@ function handlePost($pdo) {
             $note['listItems'] = [];
         }
 
+        // Fetch assigned labels for the note
+        $stmtLabels = $pdo->prepare("SELECT l.id, l.name, l.color FROM labels l JOIN note_labels nl ON l.id = nl.label_id WHERE nl.note_id = :note_id");
+        $stmtLabels->execute([':note_id' => $id]);
+        $note['labels'] = $stmtLabels->fetchAll();
+
         http_response_code(201);
         echo json_encode($note);
     } catch (PDOException $e) {
+        $pdo->rollBack();
         http_response_code(500);
         echo json_encode(['error' => true, 'message' => 'Error creating note: ' . $e->getMessage()]);
     }
@@ -272,10 +360,8 @@ function handlePut($pdo) {
             $fields[] = "pinned = :pinned";
             $params[':pinned'] = $pinned;
         }
-        if ($labels !== null) {
-            $fields[] = "labels = :labels";
-            $params[':labels'] = $labels;
-        }
+        // Remove labels field update in notes table
+        // Handle labels in note_labels join table instead
         if ($image_url !== null) {
             $fields[] = "image_url = :image_url";
             $params[':image_url'] = $image_url;
@@ -318,6 +404,24 @@ function handlePut($pdo) {
                     }
                 }
             }
+
+            // Update labels if provided
+            if ($labels !== null && is_array($labels)) {
+                // Delete existing labels for the note
+                $stmtDeleteLabels = $pdo->prepare("DELETE FROM note_labels WHERE note_id = :note_id");
+                $stmtDeleteLabels->execute([':note_id' => $id]);
+
+                // Insert new labels
+                $stmtInsertLabel = $pdo->prepare("INSERT INTO note_labels (note_id, label_id) VALUES (:note_id, :label_id)");
+                foreach ($labels as $labelId) {
+                    $stmtInsertLabel->execute([':note_id' => $id, ':label_id' => $labelId]);
+                }
+            }
+
+            // Fetch assigned labels for the note
+            $stmtLabels = $pdo->prepare("SELECT l.id, l.name, l.color FROM labels l JOIN note_labels nl ON l.id = nl.label_id WHERE nl.note_id = :note_id");
+            $stmtLabels->execute([':note_id' => $id]);
+            $note['labels'] = $stmtLabels->fetchAll();
 
             http_response_code(200);
             echo json_encode($note);

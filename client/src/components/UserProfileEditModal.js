@@ -78,7 +78,7 @@ export default function UserProfileEditModal({ isOpen, onClose }) {
       aria-labelledby="user-profile-edit-title"
     >
       <div
-        className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 w-full max-w-md overflow-auto max-h-[90vh]"
+      className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 w-full max-w-md"
         onClick={(e) => e.stopPropagation()}
       >
         <h2

@@ -16,13 +16,13 @@ $data = json_decode(file_get_contents('php://input'), true);
 
 try {
     // Validate input
-    if (empty($data['email']) || empty($data['password'])) {
-        throw new Exception("Email and password are required");
+    if (empty($data['identifier']) || empty($data['password'])) {
+        throw new Exception("Identifier and password are required");
     }
 
-    // Find user
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
-    $stmt->execute([$data['email']]);
+    // Find user by username or email
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ? OR email = ?");
+    $stmt->execute([$data['identifier'], $data['identifier']]);
     $user = $stmt->fetch();
 
     if (!$user || !password_verify($data['password'], $user['password_hash'])) {
@@ -39,7 +39,7 @@ try {
         'email' => $user['email'],
         'firstName' => $user['first_name'],
         'lastName' => $user['last_name'],
-        'profilePicture' => $user['profile_picture'] ? "/api/lib/uploads/{$user['profile_picture']}" : null,
+        'profilePicture' => $user['profile_picture'] ? "/uploads/{$user['profile_picture']}" : null,
         'bio' => $user['bio']
     ];
 

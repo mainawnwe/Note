@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Type, List, PenTool, Camera, Send, X, Pin, Plus, CheckCircle, MoreHorizontal, ChevronDown, Clock, User, Bold, Italic, Underline, Trash2 } from 'lucide-react';
+import { Type, List, PenTool, Camera, Send, X, Pin, Plus, CheckCircle, MoreHorizontal, ChevronDown, Clock, User, Bold, Italic, Underline, Trash2, Tag } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import DrawingCanvas from './DrawingCanvas';
 import ImageUpload from './ImageUpload';
+import EditLabelsModal from './EditLabelsModal';
 
-export default function CreateArea({ onAdd, darkMode }) {
+export default function CreateArea({ onAdd, darkMode, onLabelsChange, onLabelClick, currentLabel, allLabels, setAllLabels }) {
   const [note, setNote] = useState({
     title: '',
     content: '',
@@ -18,8 +19,11 @@ export default function CreateArea({ onAdd, darkMode }) {
     drawingColor: '#000000',
   });
 
+  const [selectedLabels, setSelectedLabels] = useState([]);
+
   const [isExpanded, setIsExpanded] = useState(false);
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
+  const [editLabelsModalOpen, setEditLabelsModalOpen] = useState(false);
   const [formatting, setFormatting] = useState({
     bold: false,
     italic: false,
@@ -30,13 +34,23 @@ export default function CreateArea({ onAdd, darkMode }) {
   const formRef = useRef(null);
 
   useEffect(() => {
-    if (note.type === 'list' && note.listItems.length === 0) {
-      setNote(prevNote => ({
-        ...prevNote,
-        listItems: [{ id: Date.now(), text: '', checked: false }]
-      }));
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [moreOptionsOpen, isExpanded, note.title, note.content, note.type]);
+
+  const handleClickOutside = (e) => {
+    if (moreOptionsRef.current && !moreOptionsRef.current.contains(e.target) &&
+        formRef.current && !formRef.current.contains(e.target)) {
+      setMoreOptionsOpen(false);
+      if (note.title.trim() === '' && note.content.trim() === '' && note.type === 'note') {
+        setIsExpanded(false);
+      }
+    } else if (moreOptionsRef.current && !moreOptionsRef.current.contains(e.target)) {
+      setMoreOptionsOpen(false);
     }
-  }, [note.type, note.listItems.length]);
+  };
 
   const handleNoteTypeChange = (type) => {
     setNote({
@@ -140,25 +154,6 @@ export default function CreateArea({ onAdd, darkMode }) {
     setMoreOptionsOpen(!moreOptionsOpen);
   };
 
-  const handleClickOutside = (e) => {
-    if (moreOptionsRef.current && !moreOptionsRef.current.contains(e.target) &&
-        formRef.current && !formRef.current.contains(e.target)) {
-      setMoreOptionsOpen(false);
-      if (note.title.trim() === '' && note.content.trim() === '' && note.type === 'note') {
-        setIsExpanded(false);
-      }
-    } else if (moreOptionsRef.current && !moreOptionsRef.current.contains(e.target)) {
-      setMoreOptionsOpen(false);
-    }
-  };
-
-  useEffect(() => {
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [moreOptionsOpen, isExpanded, note.title, note.content, note.type]);
-
   const submitNote = (e) => {
     e.preventDefault();
 
@@ -190,6 +185,12 @@ export default function CreateArea({ onAdd, darkMode }) {
       }
     }
 
+    // Ensure currentLabel is included in labels
+    let labelsToSend = selectedLabels.length > 0 ? selectedLabels.map(label => label.id || label) : [];
+    if (currentLabel && !labelsToSend.includes(currentLabel.id)) {
+      labelsToSend.push(currentLabel.id);
+    }
+
     const noteToSend = {
       title: finalNote.title,
       content: finalNote.content,
@@ -197,6 +198,8 @@ export default function CreateArea({ onAdd, darkMode }) {
       color: finalNote.color,
       pinned: finalNote.pinned,
       createdAt: new Date().toISOString(),
+      labels: labelsToSend.length > 0 ? labelsToSend : [],
+      category: currentLabel || null,
     };
 
     if (finalNote.type === 'list') {
@@ -222,6 +225,7 @@ export default function CreateArea({ onAdd, darkMode }) {
       imageUrl: null,
       drawingColor: '#000000',
     });
+    setSelectedLabels([]);
     setIsExpanded(false);
     setMoreOptionsOpen(false);
     setFormatting({ bold: false, italic: false, underline: false });
@@ -239,7 +243,6 @@ export default function CreateArea({ onAdd, darkMode }) {
     { bg: '#e9d5ff', border: '#d8b4fe' },
   ];
 
-  // Calculate if the note is valid
   const isNoteValid = 
     (note.type === 'note' && (note.title || note.content)) ||
     (note.type === 'list' && note.listItems.some(item => item.text.trim() !== '')) ||
@@ -248,7 +251,6 @@ export default function CreateArea({ onAdd, darkMode }) {
 
   return (
     <div className="my-8 max-w-2xl mx-auto transition-all duration-300">
-      {/* Note type selector - visible only when not expanded */}
       {!isExpanded && (
         <div className={`flex justify-between items-center p-3 rounded-xl shadow-md mb-3 transition-all
           ${darkMode ? 'bg-gray-800 border border-gray-700 text-gray-200' : 'bg-white border border-gray-200 text-gray-700'}`}>
@@ -262,6 +264,17 @@ export default function CreateArea({ onAdd, darkMode }) {
             <Type className="mr-2 h-5 w-5" />
             <span>New Note</span>
           </button>
+
+          {editLabelsModalOpen && (
+            <EditLabelsModal
+              isOpen={editLabelsModalOpen}
+              onClose={() => setEditLabelsModalOpen(false)}
+              labels={allLabels}
+              setLabels={setAllLabels}
+              onLabelsChange={onLabelsChange}
+              darkMode={darkMode}
+            />
+          )}
 
           <button
             onClick={() => handleNoteTypeChange('list')}
@@ -341,7 +354,6 @@ export default function CreateArea({ onAdd, darkMode }) {
               </button>
             </div>
 
-            {/* Text content for note and drawing types */}
             {(note.type === 'note' || note.type === 'drawing' || note.type === 'image') && (
               <textarea
                 name="content"
@@ -437,27 +449,17 @@ export default function CreateArea({ onAdd, darkMode }) {
                   drawingColor={note.drawingColor} 
                 />
                 <div className="mt-4">
-                  <div className="mb-2">
-                    <span className="text-sm font-semibold">Drawing Color:</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    {colors.map((color, index) => (
-                      <button
-                        key={index}
-                        type="button"
-                        onClick={() => setNote(prev => ({ ...prev, drawingColor: color.bg }))}
-                        className={`
-                          w-6 h-6 rounded-full border-2 transition-transform
-                          ${note.drawingColor === color.bg ? 'scale-110 ring-2 ring-offset-2 ring-blue-500' : 'scale-100 hover:scale-110'}
-                        `}
-                        style={{
-                          backgroundColor: color.bg,
-                          borderColor: color.border
-                        }}
-                        aria-label={`Select drawing color ${color.bg}`}
-                      />
-                    ))}
-                  </div>
+                  <label htmlFor="drawingColor" className="text-sm font-semibold block mb-1">
+                    Drawing Color:
+                  </label>
+                  <input
+                    id="drawingColor"
+                    type="color"
+                    value={note.drawingColor}
+                    onChange={(e) => setNote(prev => ({ ...prev, drawingColor: e.target.value }))}
+                    className="w-12 h-8 p-0 border-0 cursor-pointer"
+                    title="Select drawing color"
+                  />
                 </div>
               </div>
             )}
@@ -473,28 +475,15 @@ export default function CreateArea({ onAdd, darkMode }) {
             )}
 
             <div className="mt-4 space-y-4">
-              <div>
-                <div className="mb-2">
-                  <span className="text-sm font-semibold">Background Color:</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {colors.map((color, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => handleColorChange(color.bg)}
-                      className={`
-                        w-8 h-8 rounded-full border-2 transition-transform
-                        ${note.color === color.bg ? 'scale-110 ring-2 ring-offset-2 ring-blue-500' : 'scale-100 hover:scale-110'}
-                      `}
-                      style={{
-                        backgroundColor: color.bg,
-                        borderColor: color.border
-                      }}
-                      aria-label={`Select color ${color.bg}`}
-                    />
-                  ))}
-                </div>
+              <div className="mt-4">
+                <EditLabelsModal
+                  isOpen={editLabelsModalOpen}
+                  onClose={() => setEditLabelsModalOpen(false)}
+                  labels={allLabels}
+                  setLabels={setAllLabels}
+                  onLabelsChange={setAllLabels}
+                  darkMode={darkMode}
+                />
               </div>
             </div>
 
@@ -562,26 +551,39 @@ export default function CreateArea({ onAdd, darkMode }) {
                       ${darkMode ? 'bg-gray-800 border border-gray-700 text-gray-200' : 'bg-white border border-gray-200 text-gray-700'}
                       transition-all duration-200 origin-bottom-left
                     `}>
-                      <button
-                        type="button"
-                        className={`
-                          w-full text-left px-4 py-3 flex items-center transition-colors
-                          ${darkMode ? 'hover:bg-gray-700/80' : 'hover:bg-gray-100'}
-                        `}
-                      >
-                        <Clock className="mr-3 h-5 w-5 text-gray-500" />
-                        <span>Reminder</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={`
-                          w-full text-left px-4 py-3 flex items-center transition-colors
-                          ${darkMode ? 'hover:bg-gray-700/80' : 'hover:bg-gray-100'}
-                        `}
-                      >
-                        <User className="mr-3 h-5 w-5 text-gray-500" />
-                        <span>Collaborator</span>
-                      </button>
+                    <button
+                      type="button"
+                      className={`
+                        w-full text-left px-4 py-3 flex items-center transition-colors
+                        ${darkMode ? 'hover:bg-gray-700/80' : 'hover:bg-gray-100'}
+                      `}
+                      onClick={() => {
+                        setEditLabelsModalOpen(true);
+                      }}
+                    >
+                      <Tag className="mr-3 h-5 w-5 text-gray-500" />
+                      <span>Add label</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`
+                        w-full text-left px-4 py-3 flex items-center transition-colors
+                        ${darkMode ? 'hover:bg-gray-700/80' : 'hover:bg-gray-100'}
+                      `}
+                    >
+                      <Clock className="mr-3 h-5 w-5 text-gray-500" />
+                      <span>Reminder</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`
+                        w-full text-left px-4 py-3 flex items-center transition-colors
+                        ${darkMode ? 'hover:bg-gray-700/80' : 'hover:bg-gray-100'}
+                      `}
+                    >
+                      <User className="mr-3 h-5 w-5 text-gray-500" />
+                      <span>Collaborator</span>
+                    </button>
                     </div>
                   )}
                 </div>
@@ -638,7 +640,6 @@ export default function CreateArea({ onAdd, darkMode }) {
           </>
         )}
 
-        {/* Collapsed view */}
         {!isExpanded && (
           <div 
             onClick={() => setIsExpanded(true)}

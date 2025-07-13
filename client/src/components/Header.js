@@ -12,6 +12,7 @@ import FeedbackModal from './FeedbackModal';
 import SettingsMenu from './SettingsMenu';
 import { AuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import EditLabelsModal from './EditLabelsModal';
 
 function Header({
   isGridView,
@@ -25,18 +26,21 @@ function Header({
   user = {},
   onSignOut = () => { },
   allLabels = [],
+  setAllLabels = () => {},
   searchTerm,
   setSearchTerm,
   isSearchFocused,
-  setIsSearchFocused
+  setIsSearchFocused,
+  notesLoading
 }) {
+  console.log('Header user prop:', user);
   const { darkMode, toggleDarkMode } = useTheme();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState('Notes');
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isEditLabelsOpen, setIsEditLabelsOpen] = useState(false);
 
   const menuRef = useRef(null);
   const profileRef = useRef(null);
@@ -44,6 +48,13 @@ function Header({
   const dropdownRef = useRef(null);
 
   const navigate = useNavigate();
+
+  // Log profile picture URL when user or profile_picture changes
+  useEffect(() => {
+    if (user?.profile_picture) {
+      console.log('Profile picture URL:', `http://localhost:8000/api/uploads/${user.profile_picture.replace(/^\/uploads\//, '')}`);
+    }
+  }, [user?.profile_picture]);
 
   // Toggle functions
   const toggleView = () => {
@@ -57,11 +68,10 @@ function Header({
   const handleRefresh = async () => {
     setMenuOpen(false);
     setProfileOpen(false);
-    setIsRefreshing(true);
     try {
       await onRefreshNotes();
     } finally {
-      setIsRefreshing(false);
+      // no local isRefreshing state anymore
     }
   };
 
@@ -70,6 +80,12 @@ function Header({
     // Treat "Notes" as clearing the filter
     if (item === 'Notes') {
       onMenuClick(null);
+      navigate('/');
+    } else if (item === 'Edit Labels') {
+      setIsEditLabelsOpen(true);
+    } else if (allLabels.some(label => label.name === item)) {
+      onMenuClick(item);
+      navigate(`/label/${encodeURIComponent(item)}`);
     } else {
       onMenuClick(item);
     }
@@ -77,7 +93,6 @@ function Header({
   };
 
   const handleCategoryClick = (category) => {
-    console.log('handleCategoryClick called with:', category);
     setNavigationStack(prevStack => {
       // If the last item is CATEGORY_SELECTION, replace it with the new category
       let newStack;
@@ -86,7 +101,6 @@ function Header({
       } else {
         newStack = [...prevStack, category];
       }
-      console.log('Updated navigationStack:', newStack);
       return newStack;
     });
     onMenuClick(category);
@@ -101,10 +115,8 @@ function Header({
   }, [searchTerm, setIsSearchFocused]);
 
   const handleSearchFocus = () => {
-    console.log('Search bar focused');
     setIsSearchFocused(true);
     setNavigationStack(['CATEGORY_SELECTION']);
-    console.log('Navigation stack initialized:', ['CATEGORY_SELECTION']);
   };
 
   const selectedCategory = (navigationStack && navigationStack.length > 0) ? navigationStack[navigationStack.length - 1] : null;
@@ -124,11 +136,12 @@ function Header({
       onClick: () => handleMenuItemClick('Reminders')
     },
     ...allLabels.map(label => ({
-      id: `label-${label}`,
-      title: label,
+      id: `label-${label.id}`,
+      title: label.name,
       icon: <Tag className="h-5 w-5" />,
-      onClick: () => handleMenuItemClick(label)
+      onClick: () => handleMenuItemClick(label.name)
     })),
+    // Removed Profile menu item as per user request
     {
       id: 'edit-labels',
       title: "Edit Labels",
@@ -300,7 +313,6 @@ function Header({
               {/* View Toggle */}
               <button
                 onClick={() => {
-                  console.log('Header: View toggle clicked');
                   toggleView();
                 }}
                 className={`p-2 rounded-lg transition-all duration-200 ${darkMode
@@ -319,17 +331,16 @@ function Header({
               {/* Refresh Button */}
               <button
                 onClick={() => {
-                  console.log('Header: Refresh button clicked');
                   handleRefresh();
                 }}
-                disabled={isRefreshing}
+                disabled={notesLoading}
                 className={`p-2 rounded-lg transition-all duration-200 ${darkMode
                   ? 'hover:bg-gray-800/80 text-gray-300'
                   : 'hover:bg-amber-100 text-gray-700'
-                  } ${isRefreshing ? (darkMode ? 'bg-gray-800/30' : 'bg-amber-100/30') : ''}`}
+                  } ${notesLoading ? (darkMode ? 'bg-gray-800/30' : 'bg-amber-100/30') : ''}`}
                 aria-label="Refresh notes"
               >
-                <RefreshCw className={`h-5 w-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-5 w-5 ${notesLoading ? 'animate-spin' : ''}`} />
               </button>
 
               {/* Dark Mode Toggle */}
@@ -363,9 +374,10 @@ function Header({
                 >
                   {user?.profile_picture ? (
                     <img
-                      src={`http://localhost:8000/uploads/${user.profile_picture.replace(/^\/uploads\//, '')}`}
+                      src={`http://localhost:8000/uploads/${user.profile_picture.replace(/^\/?uploads\//, '')}`}
                       alt="Profile"
-                      className="rounded-full w-8 h-8 object-cover shadow-md transition-transform duration-300 hover:scale-105"
+                      className="rounded-full shadow-md transition-transform duration-300 hover:scale-105"
+                      style={{ width: '32px', height: '32px', objectFit: 'cover' }}
                     />
                   ) : (
                     <div className={`bg-gradient-to-br rounded-full w-8 h-8 flex items-center justify-center text-white font-medium shadow-md transition-transform duration-300 hover:scale-105 ${darkMode ? 'from-amber-500 to-amber-600' : 'from-amber-400 to-amber-500'
@@ -388,11 +400,14 @@ function Header({
                       }`}>
                       <div className="flex items-center space-x-3">
                     {user?.profile_picture ? (
-                      <img
-                        src={`http://localhost:8000/uploads/${user.profile_picture.replace(/^\/uploads\//, '')}`}
-                        alt="Profile"
-                        className="rounded-full w-12 h-12 object-cover border-4 border-amber-500 shadow-lg"
-                      />
+                      <>
+                        <img
+                          src={`http://localhost:8000/uploads/${user.profile_picture.replace(/^\/?uploads\//, '')}`}
+                          alt="Profile"
+                          className="rounded-full border-4 border-amber-500 shadow-lg"
+                          style={{ width: '48px', height: '48px', objectFit: 'cover', padding: '2px' }}
+                        />
+                      </>
                     ) : (
                       <div className={`bg-gradient-to-br rounded-full w-12 h-12 flex items-center justify-center text-white font-medium shadow-lg ${darkMode ? 'from-amber-500 to-amber-600' : 'from-amber-400 to-amber-500'
                         }`}>
@@ -440,15 +455,14 @@ function Header({
           </div>
         </div>
       </header>
-
-      {/* Modals */}
-      {showFeedbackModal && (
-        <FeedbackModal
-          isOpen={showFeedbackModal}
-          onClose={() => setShowFeedbackModal(false)}
-          darkMode={darkMode}
-        />
-      )}
+      <EditLabelsModal
+        isOpen={isEditLabelsOpen}
+        onClose={() => setIsEditLabelsOpen(false)}
+        labels={allLabels}
+        setLabels={setAllLabels}
+        onLabelsChange={setAllLabels}
+        darkMode={darkMode}
+      />
     </>
   );
 }

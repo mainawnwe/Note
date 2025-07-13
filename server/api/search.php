@@ -23,15 +23,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $searchTerm = '%' . $searchTerm . '%';
         $stmt = $pdo->prepare("SELECT id, title, content, created_at AS createdAt, color, pinned, labels, image_url 
                               FROM notes 
-                              WHERE title LIKE :term OR content LIKE :term
+                              WHERE title LIKE :term1 OR content LIKE :term2
                               ORDER BY pinned DESC, created_at DESC");
-        $stmt->bindParam(':term', $searchTerm);
+        $stmt->bindParam(':term1', $searchTerm);
+        $stmt->bindParam(':term2', $searchTerm);
         $stmt->execute();
         $results = $stmt->fetchAll();
 
         http_response_code(200);
         echo json_encode($results ?: []);
     } catch (PDOException $e) {
+        error_log('Search failed: ' . $e->getMessage());
         http_response_code(500);
         echo json_encode(['error' => true, 'message' => 'Search failed: ' . $e->getMessage()]);
     }

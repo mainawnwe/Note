@@ -6,6 +6,7 @@ import DrawingNoteCardDisplay from './DrawingNoteCardDisplay';
 import DrawingCanvas from './DrawingCanvas';
 import ImageNoteCardDisplay from './ImageNoteCardDisplay';
 import { Pin, Save, XCircle, Trash2 } from 'lucide-react';
+import LabelSelector from './LabelSelector';
 
 function NoteDetailsModal({ isOpen, onClose, note, darkMode, searchTerm, onUpdate, onDelete }) {
   const {
@@ -18,12 +19,47 @@ function NoteDetailsModal({ isOpen, onClose, note, darkMode, searchTerm, onUpdat
     imageData: initialImageData,
     pinned: initialPinned,
     color: initialColor,
+    labels: initialLabels = [],
   } = note || {};
+
+  // Utility function to determine if a color is light or dark
+  // Calculate relative luminance of a color
+  const getLuminance = (r, g, b) => {
+    const a = [r, g, b].map((v) => {
+      v /= 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
+  };
+
+  // Calculate contrast ratio between two luminances
+  const getContrastRatio = (lum1, lum2) => {
+    const lighter = Math.max(lum1, lum2);
+    const darker = Math.min(lum1, lum2);
+    return (lighter + 0.05) / (darker + 0.05);
+  };
+
+  const isColorLight = (color) => {
+    if (!color) return true;
+    const c = color.charAt(0) === '#' ? color.substring(1) : color;
+    const hex = c.length === 3 ? c.split('').map(ch => ch + ch).join('') : c;
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    const bgLuminance = getLuminance(r, g, b);
+    const whiteLuminance = getLuminance(255, 255, 255);
+    const blackLuminance = getLuminance(0, 0, 0);
+    const contrastWithWhite = getContrastRatio(bgLuminance, whiteLuminance);
+    const contrastWithBlack = getContrastRatio(bgLuminance, blackLuminance);
+    // Return true if white text has better contrast, else false
+    return contrastWithWhite >= contrastWithBlack;
+  };
 
   const [title, setTitle] = useState(initialTitle || '');
   const [content, setContent] = useState(initialContent || '');
   const [listItems, setListItems] = useState(initialListItems || []);
   const [drawingData, setDrawingData] = useState(initialDrawingData || null);
+  const [drawingColor, setDrawingColor] = useState('#000000'); // default drawing color
   const [imageData, setImageData] = useState(() => {
     if (!initialImageData) return [];
     try {
@@ -38,6 +74,27 @@ function NoteDetailsModal({ isOpen, onClose, note, darkMode, searchTerm, onUpdat
   });
   const [isPinned, setIsPinned] = useState(initialPinned || false);
   const [noteColor, setNoteColor] = useState(initialColor || (darkMode ? '#1e293b' : '#ffffff'));
+  const [selectedLabels, setSelectedLabels] = useState(initialLabels);
+
+  // Determine if color is dark or black
+  const isColorDarkOrBlack = (color) => {
+    if (!color) return false;
+    const c = color.charAt(0) === '#' ? color.substring(1) : color;
+    const hex = c.length === 3 ? c.split('').map(ch => ch + ch).join('') : c;
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    // Consider black or dark if luminance below 0.15
+    return luminance < 0.15;
+  };
+
+  const textColor = isColorDarkOrBlack(noteColor) ? '#ffffff' : '#000000';
+
+  // Override: if no background color, always black text
+  if (!noteColor) {
+    textColor = '#000000';
+  }
 
   useEffect(() => {
     setTitle(initialTitle || '');
@@ -56,6 +113,10 @@ function NoteDetailsModal({ isOpen, onClose, note, darkMode, searchTerm, onUpdat
   }, [initialDrawingData]);
 
   useEffect(() => {
+    setDrawingColor('#000000'); // reset to default or could be extended to load from note if stored
+  }, [initialDrawingData]);
+
+  useEffect(() => {
     setImageData(() => {
       if (!initialImageData) return [];
       try {
@@ -68,7 +129,7 @@ function NoteDetailsModal({ isOpen, onClose, note, darkMode, searchTerm, onUpdat
         return [initialImageData];
       }
     });
-  }, [initialImageData]);
+  }, [initialImageData]); // Added dependency array to prevent infinite loop
 
   useEffect(() => {
     setIsPinned(initialPinned || false);
@@ -77,6 +138,12 @@ function NoteDetailsModal({ isOpen, onClose, note, darkMode, searchTerm, onUpdat
   useEffect(() => {
     setNoteColor(initialColor || (darkMode ? '#1e293b' : '#ffffff'));
   }, [initialColor, darkMode]);
+
+  useEffect(() => {
+    setSelectedLabels(initialLabels);
+  }, [initialLabels]);
+
+  // Fix: Add dependency array to prevent infinite re-render
 
   const fileInputRef = useRef(null);
 
@@ -102,6 +169,7 @@ function NoteDetailsModal({ isOpen, onClose, note, darkMode, searchTerm, onUpdat
       title,
       pinned: isPinned ? 1 : 0,
       color: noteColor,
+      labels: selectedLabels.map(label => label.id),
     };
 
     if (type === 'list') {
@@ -115,6 +183,11 @@ function NoteDetailsModal({ isOpen, onClose, note, darkMode, searchTerm, onUpdat
       updateData.content = content;
     } else {
       updateData.content = content;
+    }
+
+    // Ensure labels are included as array of label IDs to preserve them
+    if (selectedLabels && selectedLabels.length > 0) {
+      updateData.labels = selectedLabels.map(label => label.id);
     }
 
     onUpdate(id, updateData);
@@ -150,16 +223,14 @@ function NoteDetailsModal({ isOpen, onClose, note, darkMode, searchTerm, onUpdat
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Edit Note">
-      <div className="flex flex-col h-full max-h-[80vh] overflow-y-auto p-4 space-y-4">
+    <Modal isOpen={isOpen} onClose={onClose} title="Edit Note" contentStyle={{ backgroundColor: noteColor, color: textColor }}>
+      <div className="flex flex-col h-full p-4 space-y-4" style={{ color: textColor }}>
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className={`font-bold text-xl mb-2 p-2 rounded-md focus:ring-2 focus:ring-amber-500 focus:outline-none ${darkMode
-            ? 'bg-gray-800 text-white border-gray-700'
-            : 'bg-white text-gray-900 border-gray-300'
-          } border`}
+          style={{ color: textColor, backgroundColor: noteColor }}
+          className={`font-bold text-xl mb-2 p-2 rounded-md focus:ring-2 focus:ring-amber-500 focus:outline-none border`}
           placeholder="Title"
         />
         {type === 'list' ? (
@@ -177,14 +248,30 @@ function NoteDetailsModal({ isOpen, onClose, note, darkMode, searchTerm, onUpdat
                 initialDrawingData={drawingData}
                 onSave={setDrawingData}
                 darkMode={darkMode}
+                drawingColor={drawingColor}
+                showControls={true}
+              />
+            </div>
+            <div className="mt-2 flex items-center space-x-2">
+              <label htmlFor="drawingColor" className="text-sm font-semibold">
+                Drawing Color:
+              </label>
+              <input
+                id="drawingColor"
+                type="color"
+                value={drawingColor}
+                onChange={(e) => setDrawingColor(e.target.value)}
+                className="w-10 h-8 p-0 border-0 cursor-pointer"
+                title="Select drawing color"
               />
             </div>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
+              style={{ color: textColor, backgroundColor: noteColor }}
               className={`resize-none p-2 rounded border mt-2 ${darkMode
-                ? 'bg-gray-700 border-gray-600 text-white'
-                : 'bg-gray-100 border-gray-300 text-gray-900'
+                ? 'border-gray-600'
+                : 'border-gray-300'
               }`}
               placeholder="Add a note about the drawing..."
               rows={3}
@@ -240,7 +327,8 @@ function NoteDetailsModal({ isOpen, onClose, note, darkMode, searchTerm, onUpdat
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            className={`flex-grow resize-none p-2 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-100 border-gray-300 text-gray-900'}`}
+            style={{ color: textColor, backgroundColor: noteColor }}
+            className={`flex-grow resize-none p-2 rounded border ${darkMode ? 'border-gray-600' : 'border-gray-300'}`}
             placeholder="Edit your note content here..."
           />
         )}
@@ -280,26 +368,34 @@ function NoteDetailsModal({ isOpen, onClose, note, darkMode, searchTerm, onUpdat
           </div>
         </div>
         {/* Color picker */}
-        <div className="mt-4">
-          <div className="mb-2">
-            <span className="text-sm font-semibold">Background Color:</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {colors.map((colorOption, index) => (
-              <button
-                key={index}
-                type="button"
-                onClick={() => setNoteColor(colorOption.bg)}
-              className={"w-8 h-8 rounded-full border-2 transition-transform " + (noteColor === colorOption.bg ? "scale-110 ring-2 ring-offset-2 ring-blue-500" : "scale-100 hover:scale-110")}
-                style={{
-                  backgroundColor: colorOption.bg,
-                  borderColor: colorOption.border
-                }}
-                aria-label={"Select color " + colorOption.bg}
-              />
-            ))}
-          </div>
+      <div className="mt-4" style={{ color: textColor }}>
+        <div className="mb-2">
+          <span className="text-sm font-semibold">Background Color:</span>
         </div>
+        <div className="flex flex-wrap gap-2">
+          {colors.map((colorOption, index) => (
+            <button
+              key={index}
+              type="button"
+              onClick={() => setNoteColor(colorOption.bg)}
+            className={"w-8 h-8 rounded-full border-2 transition-transform " + (noteColor === colorOption.bg ? "scale-110 ring-2 ring-offset-2 ring-blue-500" : "scale-100 hover:scale-110")}
+              style={{
+                backgroundColor: colorOption.bg,
+                borderColor: colorOption.border
+              }}
+              aria-label={"Select color " + colorOption.bg}
+            />
+          ))}
+        </div>
+        {/* Label selector */}
+        <div className="mt-4">
+          <LabelSelector
+            selectedLabels={selectedLabels}
+            onChange={setSelectedLabels}
+            darkMode={darkMode}
+          />
+        </div>
+      </div>
       </div>
     </Modal>
   );

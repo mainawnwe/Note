@@ -46,10 +46,37 @@ try {
     // Hash password
     $passwordHash = password_hash($input['password'], PASSWORD_BCRYPT);
 
+    // Handle profile picture upload
+    $profilePictureFilename = null;
+
+    // Log $_FILES for debugging
+    file_put_contents(__DIR__ . '/debug_files.log', print_r($_FILES, true), FILE_APPEND);
+
+    if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] === UPLOAD_ERR_OK) {
+        file_put_contents(__DIR__ . '/debug_files.log', "Uploading profile picture: " . print_r($_FILES['profile_picture'], true) . "\n", FILE_APPEND);
+        $uploadDir = __DIR__ . '/../uploads/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+        $tmpName = $_FILES['profile_picture']['tmp_name'];
+        $originalName = basename($_FILES['profile_picture']['name']);
+        $ext = pathinfo($originalName, PATHINFO_EXTENSION);
+        $profilePictureFilename = uniqid('profile_', true) . '.' . $ext;
+        $destination = $uploadDir . $profilePictureFilename;
+        $moveResult = move_uploaded_file($tmpName, $destination);
+        file_put_contents(__DIR__ . '/debug_files.log', "move_uploaded_file result: " . var_export($moveResult, true) . "\n", FILE_APPEND);
+        if (!$moveResult) {
+            throw new Exception('Failed to upload profile picture');
+        }
+    }
+
     // Insert user
+    // Debug log profile picture filename before insert
+    file_put_contents(__DIR__ . '/debug_profile_picture.log', "Profile picture filename: " . var_export($profilePictureFilename, true) . "\n", FILE_APPEND);
+
     $stmt = $pdo->prepare("
-        INSERT INTO users (username, email, password_hash, first_name, last_name, bio)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO users (username, email, password_hash, first_name, last_name, bio, profile_picture)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     ");
     $stmt->execute([
         $input['username'],
@@ -57,7 +84,8 @@ try {
         $passwordHash,
         $input['first_name'] ?? null,
         $input['last_name'] ?? null,
-        $input['bio'] ?? null
+        $input['bio'] ?? null,
+        $profilePictureFilename
     ]);
 
     $response = [

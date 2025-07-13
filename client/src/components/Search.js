@@ -10,7 +10,7 @@ const Search = ({ onSearch, searchTerm, setSearchTerm, onFocus, onBlur, darkMode
     }
     setError(null);
     try {
-      const response = await fetch(`http://localhost:8000/api/search.php?term=${encodeURIComponent(searchTerm)}`);
+      const response = await fetch(`http://localhost:8000/search.php?term=${encodeURIComponent(searchTerm)}`);
       if (!response.ok) {
         throw new Error(`HTTP error ${response.status}`);
       }

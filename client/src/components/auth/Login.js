@@ -32,10 +32,10 @@ function Login() {
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div>
                         <label className="block text-gray-700 mb-2 font-semibold" htmlFor="email">
-                            Email Address
+                            Username or Email
                         </label>
                         <input
-                            type="email"
+                            type="text"
                             id="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
