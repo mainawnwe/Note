@@ -76,6 +76,7 @@ function ImageNoteCardDisplay({
           const fallback = document.createElement('div');
           fallback.textContent = 'Image failed to load';
           fallback.style.color = 'red';
+          fallback.className = 'text-center text-red-500 text-xs p-2';
           e.target.parentNode.appendChild(fallback);
         }}
       />

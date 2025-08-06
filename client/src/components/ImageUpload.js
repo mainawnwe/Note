@@ -37,8 +37,8 @@ function ImageUpload({ onUpload, initialImageUrl, darkMode }) {
         ref={fileInputRef}
       />
       {previewUrl ? (
-        <div className="relative w-full h-full max-h-48 max-w-[300px] flex justify-center items-center">
-          <img src={previewUrl} alt="Preview" className="max-w-full max-h-full object-contain rounded-md" />
+        <div className="relative w-full max-w-[300px] max-h-60 flex justify-center items-center rounded-md overflow-hidden shadow-lg">
+          <img src={previewUrl} alt="Preview" className="max-w-full max-h-full object-contain" />
           <button
             type="button"
             onClick={handleRemoveImage}

@@ -10,19 +10,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once __DIR__ . '/../../db/db-connection.php';
 require_once __DIR__ . '/../../lib/auth.php';
 
-require_once __DIR__ . '/../../lib/auth.php';
-
 $data = json_decode(file_get_contents('php://input'), true);
 
 try {
     // Validate input
-    if (empty($data['identifier']) || empty($data['password'])) {
-        throw new Exception("Identifier and password are required");
+    $loginId = $data['identifier'] ?? $data['email'] ?? null;
+    if (empty($loginId) || empty($data['password'])) {
+        throw new Exception("Username/Email and password are required");
     }
 
     // Find user by username or email
     $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ? OR email = ?");
-    $stmt->execute([$data['identifier'], $data['identifier']]);
+    $stmt->execute([$loginId, $loginId]);
     $user = $stmt->fetch();
 
     if (!$user || !password_verify($data['password'], $user['password_hash'])) {

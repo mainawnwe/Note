@@ -1,91 +1,34 @@
 import React, { useState, useEffect } from 'react';
+import useLabels from '../hooks/useLabels';
 
 function LabelSelector({ selectedLabels, onChange, darkMode, onLabelsChange, onLabelClick }) {
-  const [labels, setLabels] = useState([]);
+  const { labels, loading, error, addLabel, deleteLabel } = useLabels();
   const [newLabelName, setNewLabelName] = useState('');
   const [newLabelColor, setNewLabelColor] = useState('#a7f3d0'); // default greenish
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
 
-  const fetchLabels = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('http://localhost:8000/labels.php');
-      if (!response.ok) throw new Error('Failed to fetch labels');
-      const data = await response.json();
-      setLabels(data);
-      if (onLabelsChange) {
-        onLabelsChange(data);
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (onLabelsChange) {
+      onLabelsChange(labels);
     }
-  };
-
-  useEffect(() => {
-    console.log('LabelSelector selectedLabels changed:', selectedLabels);
-  }, [selectedLabels]);
-
-  useEffect(() => {
-    fetchLabels();
-  }, []);
-
-  // Remove toggleLabel function since we will use onLabelClick for label clicks
+  }, [labels, onLabelsChange]);
 
   const handleAddLabel = async () => {
     if (!newLabelName.trim()) return;
-    setLoading(true);
-    setError(null);
     try {
-      const response = await fetch('http://localhost:8000/labels.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newLabelName.trim(), color: newLabelColor }),
-      });
-      if (!response.ok) throw new Error('Failed to create label');
-      const result = await response.json();
-      if (result.id) {
-        const newLabel = { id: result.id, name: newLabelName.trim(), color: newLabelColor };
-        const updatedLabels = [...labels, newLabel];
-        setLabels(updatedLabels);
-        onChange([...selectedLabels, newLabel]);
-        if (onLabelsChange) {
-          onLabelsChange(updatedLabels);
-        }
-        setNewLabelName('');
-      } else {
-        throw new Error('Invalid response from server');
-      }
+      const newLabel = await addLabel(newLabelName.trim(), newLabelColor);
+      onChange([...selectedLabels, newLabel]);
+      setNewLabelName('');
     } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+      console.error(err);
     }
   };
 
-  const deleteLabel = async (labelId) => {
-    setLoading(true);
-    setError(null);
+  const handleDeleteLabel = async (labelId) => {
     try {
-      const response = await fetch('http://localhost:8000/labels.php', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `id=${encodeURIComponent(labelId)}`,
-      });
-      if (!response.ok) throw new Error('Failed to delete label');
-      // Remove deleted label from state
-      const updatedLabels = labels.filter(label => label.id !== labelId);
-      setLabels(updatedLabels);
+      await deleteLabel(labelId);
       onChange(selectedLabels.filter(label => label.id !== labelId));
-      if (onLabelsChange) {
-        onLabelsChange(updatedLabels);
-      }
     } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+      console.error(err);
     }
   };
 
@@ -114,15 +57,16 @@ function LabelSelector({ selectedLabels, onChange, darkMode, onLabelsChange, onL
                     onLabelClick(label);
                   }
                 }}
-                className={`px-3 py-1 rounded-full border cursor-pointer select-none transition-colors ${
-                  selected
-                    ? `bg-[${label.color}] text-white border-transparent`
-                    : `bg-transparent text-[${label.color}] border-[${label.color}] hover:bg-[${label.color}] hover:text-white`
-                }`}
                 style={{
                   backgroundColor: selected ? label.color : 'transparent',
                   color: selected ? '#fff' : label.color,
                   borderColor: label.color,
+                  padding: '0.25rem 0.75rem',
+                  borderRadius: '9999px',
+                  borderStyle: 'solid',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  transition: 'background-color 0.2s, color 0.2s',
                 }}
                 aria-pressed={selected}
               >
@@ -130,7 +74,7 @@ function LabelSelector({ selectedLabels, onChange, darkMode, onLabelsChange, onL
               </button>
               <button
                 type="button"
-                onClick={() => deleteLabel(label.id)}
+                onClick={() => handleDeleteLabel(label.id)}
                 className="text-red-500 hover:text-red-700 focus:outline-none"
                 aria-label={`Delete label ${label.name}`}
                 title={`Delete label ${label.name}`}

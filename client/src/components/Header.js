@@ -31,7 +31,8 @@ function Header({
   setSearchTerm,
   isSearchFocused,
   setIsSearchFocused,
-  notesLoading
+  notesLoading,
+  onToggleSidebar = () => {}
 }) {
   console.log('Header user prop:', user);
   const { darkMode, toggleDarkMode } = useTheme();
@@ -83,6 +84,10 @@ function Header({
       navigate('/');
     } else if (item === 'Edit Labels') {
       setIsEditLabelsOpen(true);
+    } else if (item === 'archive') {
+      navigate('/archive');
+    } else if (item === 'trash') {
+      navigate('/trash');
     } else if (allLabels.some(label => label.name === item)) {
       onMenuClick(item);
       navigate(`/label/${encodeURIComponent(item)}`);
@@ -150,15 +155,15 @@ function Header({
     },
     {
       id: 'archive',
-      title: "Archive",
+      title: "archive",
       icon: <Archive className="h-5 w-5" />,
-      onClick: () => handleMenuItemClick('Archive')
+      onClick: () => handleMenuItemClick('archive')
     },
     {
       id: 'trash',
-      title: "Trash",
+      title: "trash",
       icon: <Trash2 className="h-5 w-5" />,
-      onClick: () => handleMenuItemClick('Trash')
+      onClick: () => handleMenuItemClick('trash')
     }
   ];
 
@@ -195,11 +200,12 @@ function Header({
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
 
-            {/* Left Section - Logo and Menu */}
-            <div className="flex items-center space-x-4">
+            {/* Left Section - Main Menu Button and Logo */}
+            <div className="flex items-center space-x-4 relative">
+              {/* Removed menu toggle button */}
               {/* Animated Logo */}
               <div
-                className="flex items-center space-x-2 group cursor-pointer"
+                className="flex items-center space-x-2 group cursor-pointer z-20"
                 onClick={() => navigate('/')}
               >
                 <div className={`p-2 rounded-lg transition-all duration-300 group-hover:scale-105 ${darkMode ? 'bg-amber-600 shadow-amber-900/50' : 'bg-amber-500 shadow-amber-400/50'
@@ -212,59 +218,10 @@ function Header({
                 </div>
                 <h1 className={`text-xl font-bold hidden md:block bg-gradient-to-r ${darkMode ? 'from-amber-400 to-amber-300' : 'from-amber-600 to-amber-500'
                   } bg-clip-text text-transparent tracking-tight`}>
-                  Keep Your Note
+                  Keep Note
                 </h1>
               </div>
 
-              {/* Menu Dropdown */}
-              <div className="relative">
-                <button
-                  onClick={toggleMenu}
-                  className={`flex items-center space-x-1 px-3 py-2 rounded-lg transition-all duration-200 ${darkMode
-                    ? 'hover:bg-gray-800/80 text-gray-300'
-                    : 'hover:bg-amber-100 text-gray-700'
-                    } ${menuOpen ? (darkMode ? 'bg-gray-800/80' : 'bg-amber-100') : ''}`}
-                  aria-expanded={menuOpen}
-                >
-                  <Menu className="h-5 w-5" />
-                  <span className="hidden md:inline font-medium">Menu</span>
-                  {menuOpen ? (
-                    <ChevronUp className="h-4 w-4 transition-transform" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4 transition-transform" />
-                  )}
-                </button>
-
-                {menuOpen && (
-                  <div
-                    ref={menuRef}
-                    className={`absolute top-full left-0 mt-2 w-64 rounded-xl shadow-xl z-50 max-h-[calc(100vh-5rem)] overflow-auto transition-all duration-200 origin-top ${darkMode
-                      ? 'bg-gray-800 border border-gray-700 text-gray-300 shadow-gray-900/50'
-                      : 'bg-white border border-gray-200 text-gray-700 shadow-gray-400/30'
-                      }`}
-                  >
-                    <nav className="flex flex-col py-2">
-                      {menuItems.map((item) => (
-                        <button
-                          key={item.id}
-                          className={`flex items-center space-x-3 px-4 py-3 focus:outline-none transition-colors duration-150 ${darkMode
-                            ? 'hover:bg-gray-700/50'
-                            : 'hover:bg-amber-50'
-                            } ${activeFilter === item.title ? (darkMode ? 'bg-gray-700 text-amber-400' : 'bg-amber-100 text-amber-600') : ''}`}
-                          onClick={item.onClick}
-                        >
-                          <span className="flex-shrink-0">
-                            {React.cloneElement(item.icon, {
-                              className: `${item.icon.props.className} ${activeFilter === item.title ? (darkMode ? 'text-amber-400' : 'text-amber-600') : ''}`
-                            })}
-                          </span>
-                          <span className="text-left font-medium">{item.title}</span>
-                        </button>
-                      ))}
-                    </nav>
-                  </div>
-                )}
-              </div>
             </div>
 
             {/* Center Section - Search Bar */}

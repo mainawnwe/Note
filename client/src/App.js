@@ -1,8 +1,9 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { ThemeProvider } from './context/ThemeContext';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 import MainContent from './components/MainContent';
 import Header from './components/Header';
+import Sidebar from './components/Sidebar';
 import Login from './components/auth/Login';
 import Signup from './components/auth/Signup';
 import UserProfilePage from './components/UserProfilePage';
@@ -14,6 +15,8 @@ import CreateArea from './components/CreateArea';
 
 function AppContent() {
   const { user, loading, logout } = useContext(AuthContext);
+  const { darkMode } = useTheme();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isGridView, setIsGridView] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [navigationStack, setNavigationStack] = useState([]);
@@ -22,6 +25,10 @@ function AppContent() {
   const [selectedLabel, setSelectedLabel] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [currentLabel, setCurrentLabel] = useState(null);
+  const [currentTab, setCurrentTab] = useState(() => {
+    const savedTab = localStorage.getItem('activeTab');
+    return savedTab ? savedTab : 'notes';
+  });
   const [allLabels, setAllLabels] = useState([]);
   const [isEditLabelsOpen, setIsEditLabelsOpen] = useState(false);
 
@@ -55,7 +62,8 @@ function AppContent() {
       setNotesLoading(true);
     }
     try {
-      let url = 'http://localhost:8000/index.php';
+      console.log('fetchNotes called with selectedType:', selectedType, 'currentLabel:', currentLabel, 'selectedCategory:', selectedCategory, 'currentTab:', currentTab);
+      let url = 'http://localhost:8000';
       const statusCategories = ['trash', 'archive'];
       const noteTypeMap = {
         'lists': 'list',
@@ -63,13 +71,16 @@ function AppContent() {
         'drawings': 'drawing',
         'urls': 'url'
       };
-      if (selectedType || selectedLabel || selectedCategory) {
+      if (selectedType || (currentLabel && currentTab === 'labels') || selectedCategory) {
         const params = new URLSearchParams();
 
         if (selectedCategory) {
           const lowerCat = selectedCategory.toLowerCase();
           if (statusCategories.includes(lowerCat)) {
             params.append('status', lowerCat === 'trash' ? 'trashed' : 'archived');
+          } else if (lowerCat === 'reminders') {
+            // Add filter to get notes with non-null reminders
+            params.append('reminder', 'not_null');
           }
         }
 
@@ -77,17 +88,16 @@ function AppContent() {
           params.append('type', selectedType);
         }
 
-        if (selectedLabel) {
-          params.append('label', selectedLabel);
+        if (currentLabel && currentTab === 'labels') {
+          params.append('label', currentLabel.id);
         }
 
         const queryString = params.toString();
-      if (queryString) {
-        url += `?${queryString}`;
+        if (queryString) {
+          url += `?${queryString}`;
+        }
       }
-      console.log('Fetching notes with URL:', url);
-    }
-    const response = await fetch(url);
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch notes: ${response.status}`);
       }
@@ -130,8 +140,6 @@ function AppContent() {
     }
     setSelectedType(null);
     setSelectedLabel(null);
-    setSelectedCategory(filter);
-    // Removed fetchNotes(false) here to avoid stale selectedCategory
   };
 
   const handleCategoryClick = (category) => {
@@ -153,11 +161,11 @@ function AppContent() {
   };
 
   useEffect(() => {
-    // Initial fetch on mount only
-    fetchNotes();
-  }, []);
-
-  useEffect(() => {
+    // Clear selectedType and selectedLabel when selectedCategory is 'archived' or 'trashed'
+    if (selectedCategory === 'archived' || selectedCategory === 'trashed') {
+      setSelectedType(null);
+      setSelectedLabel(null);
+    }
     // Fetch notes without loading spinner when selectedCategory changes
     if (selectedCategory !== null) {
       fetchNotes(false);
@@ -223,6 +231,10 @@ function AppContent() {
     setSelectedCategory(null);
   };
 
+  React.useEffect(() => {
+    localStorage.setItem('activeTab', currentTab);
+  }, [currentTab]);
+
   if (loading) {
     return <div>Loading...</div>;
   }
@@ -244,13 +256,72 @@ function AppContent() {
 
   return (
     <ThemeProvider>
-        <div className="min-h-screen p-8 bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">
-          <style>
-            {`
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-            body { font-family: 'Inter', sans-serif; }
-            `}
-          </style>
+      <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+        <div className={`flex flex-col sticky top-0 h-screen ${darkMode ? 'bg-gray-900 text-gray-200' : 'bg-gray-50 text-gray-900'}`}>
+          <Sidebar
+            currentTab={currentTab}
+            onTabChange={(tab) => {
+              console.log('Sidebar onTabChange called with tab:', tab);
+              if (tab === 'edit-labels') {
+                setIsEditLabelsOpen(true);
+                return;
+              }
+              // Check if tab is a label by ID
+              const labelObj = allLabels.find(label => String(label.id) === String(tab));
+              setCurrentTab(prevTab => {
+                console.log('onTabChange prevTab:', prevTab, 'new tab:', tab);
+                if (labelObj) {
+                  if (prevTab === 'labels' && currentLabel && currentLabel.id === labelObj.id) {
+                    // Same label clicked, do nothing to prevent infinite loop
+                    return prevTab;
+                  }
+                  console.log('Label clicked:', labelObj);
+                  console.log('CurrentTab before set:', prevTab);
+                  console.log('CurrentLabel before set:', currentLabel);
+                  setCurrentLabel(labelObj);
+                  setSelectedCategory(null);
+                  setSelectedLabel(null);
+                  return 'labels';
+                } else if (tab === 'archive') {
+                  if (prevTab === 'archived') return prevTab;
+                  setSelectedCategory('archived');
+                  setSelectedLabel(null);
+                  setCurrentLabel(null);
+                  return 'archived';
+                } else if (tab === 'trash') {
+                  if (prevTab === 'trashed') return prevTab;
+                  setSelectedCategory('trashed');
+                  setSelectedLabel(null);
+                  setCurrentLabel(null);
+                  return 'trashed';
+                } else if (tab === 'reminders') {
+                  if (prevTab === 'reminders') return prevTab;
+                  setSelectedCategory('reminders');
+                  setSelectedLabel(null);
+                  setCurrentLabel(null);
+                  return 'reminders';
+                } else {
+                  if (prevTab === tab || (tab === 'notes' && prevTab === 'notes')) return prevTab;
+                  setSelectedCategory(null);
+                  setSelectedLabel(null);
+                  setCurrentLabel(null);
+                  return 'notes';
+                }
+              });
+              // Reset currentLabel when currentTab changes away from 'labels'
+              if (currentTab !== 'labels' && currentLabel !== null) {
+                setCurrentLabel(null);
+              }
+            }}
+            counts={{}}
+            darkMode={darkMode}
+            collapsed={!isSidebarOpen}
+            onToggleCollapse={() => setIsSidebarOpen(prev => !prev)}
+            allLabels={allLabels}
+            onLabelClick={handleLabelClick}
+          />
+        </div>
+        <div className="flex flex-col flex-grow overflow-auto bg-gray-50 dark:bg-gray-900">
           <Header
             isGridView={isGridView}
             onToggleView={handleToggleView}
@@ -270,15 +341,18 @@ function AppContent() {
             setIsSearchFocused={setIsSearchFocused}
             onLabelClick={handleLabelClick}
             notesLoading={notesLoading}
+            onToggleSidebar={() => setIsSidebarOpen(prev => !prev)}
+            isSidebarOpen={isSidebarOpen}
           />
           <Routes>
             <Route path="/profile" element={<UserProfilePage />} />
-            <Route path="/*" element={
+            <Route path="/archive" element={
               <MainContent
                 isGridView={isGridView}
                 searchTerm={searchTerm}
-                selectedCategory={selectedCategory}
+                selectedCategory={'archived'}
                 currentLabel={currentLabel}
+                currentTab={'archived'}
                 onBack={handleBack}
                 onClose={handleClose}
                 allLabels={allLabels}
@@ -287,6 +361,43 @@ function AppContent() {
                 onRefreshNotes={handleRefreshNotes}
                 notes={notes}
                 setNotes={setNotes}
+                darkMode={darkMode}
+              />
+            } />
+            <Route path="/trash" element={
+              <MainContent
+                isGridView={isGridView}
+                searchTerm={searchTerm}
+                selectedCategory={'trashed'}
+                currentLabel={currentLabel}
+                currentTab={'trashed'}
+                onBack={handleBack}
+                onClose={handleClose}
+                allLabels={allLabels}
+                setAllLabels={setAllLabels}
+                notesLoading={notesLoading}
+                onRefreshNotes={handleRefreshNotes}
+                notes={notes}
+                setNotes={setNotes}
+                darkMode={darkMode}
+              />
+            } />
+            <Route path="/*" element={
+              <MainContent
+                isGridView={isGridView}
+                searchTerm={searchTerm}
+                selectedCategory={selectedCategory}
+                currentLabel={currentLabel}
+                currentTab={currentTab}
+                onBack={handleBack}
+                onClose={handleClose}
+                allLabels={allLabels}
+                setAllLabels={setAllLabels}
+                notesLoading={notesLoading}
+                onRefreshNotes={handleRefreshNotes}
+                notes={notes}
+                setNotes={setNotes}
+                darkMode={darkMode}
               />
             } />
           </Routes>
@@ -295,9 +406,10 @@ function AppContent() {
             onClose={() => setIsEditLabelsOpen(false)}
             labels={allLabels}
             setLabels={setAllLabels}
-            darkMode={false}
+            darkMode={darkMode}
           />
         </div>
+      </div>
     </ThemeProvider>
   );
 }

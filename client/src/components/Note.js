@@ -75,18 +75,32 @@ function Note(props) {
   }, [color, darkMode]);
 
   const openDetailsModal = () => {
-    setDetailsNote({
-      id,
-      title,
-      content,
-      pinned,
-      color,
-      type,
-      listItems,
-      drawingData,
-      imageData,
-    });
-    setIsDetailsModalOpen(true);
+    if (props.onOpenNoteEditor) {
+      props.onOpenNoteEditor({
+        id,
+        title,
+        content,
+        pinned,
+        color,
+        type,
+        listItems,
+        drawingData,
+        imageData,
+      });
+    } else {
+      setDetailsNote({
+        id,
+        title,
+        content,
+        pinned,
+        color,
+        type,
+        listItems,
+        drawingData,
+        imageData,
+      });
+      setIsDetailsModalOpen(true);
+    }
   };
 
   const closeDetailsModal = () => {
@@ -121,7 +135,22 @@ function Note(props) {
           marginBottom: '0.75rem',
           cursor: 'pointer',
         }}
-        onClick={openDetailsModal}
+        onClick={() => {
+          console.log('Note card clicked:', type, id);
+          if (props.onOpenNoteEditor) {
+            props.onOpenNoteEditor({
+              id,
+              title,
+              content,
+              pinned,
+              color,
+              type,
+              listItems,
+              drawingData,
+              imageData,
+            });
+          }
+        }}
       >
         {isPinned && (
           <div className="absolute top-3 right-3 bg-gray-400 rounded-full p-1 shadow-md cursor-pointer" onClick={togglePin} title={isPinned ? 'Unpin note' : 'Pin note'}>
@@ -186,22 +215,33 @@ function Note(props) {
               ))}
             </div>
           )}
-          <div className="mt-auto pt-3 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
+          <div className="mt-auto pt-3 border-t border-gray-200 dark:border-gray-700 flex flex-col space-y-1">
             <p className={`text-xs ${getTextColor(color).replace('text-gray-800', 'text-gray-600').replace('text-gray-300', 'text-gray-500')}`}>
               {formatDate(createdAt)}
             </p>
+          {type === 'note' && props.reminder && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center space-x-1">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3" />
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={2} fill="none" />
+              </svg>
+              <span>{new Date(props.reminder).toLocaleString()}</span>
+            </p>
+          )}
           </div>
         </div>
       </div>
-      <NoteDetailsModal
-        isOpen={isDetailsModalOpen}
-        onClose={closeDetailsModal}
-        note={detailsNote}
-        darkMode={darkMode}
-        searchTerm={searchTerm}
-        onUpdate={onUpdate}
-        onDelete={onDelete}
-      />
+      {isDetailsModalOpen && (
+        <NoteDetailsModal
+          isOpen={isDetailsModalOpen}
+          onClose={closeDetailsModal}
+          note={detailsNote}
+          darkMode={darkMode}
+          searchTerm={searchTerm}
+          onUpdate={onUpdate}
+          onDelete={onDelete}
+        />
+      )}
     </>
   );
 

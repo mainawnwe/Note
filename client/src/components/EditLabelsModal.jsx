@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import LabelSelector from './LabelSelector';
 import './ModalStyles.css';
+import useLabels from '../hooks/useLabels';
 
 function EditLabelsModal({ isOpen, onClose, labels, setLabels, darkMode, onLabelsChange }) {
+  const { labels: allLabels, loading, error, updateLabel, addLabel, deleteLabel } = useLabels();
   const [editedLabels, setEditedLabels] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     setEditedLabels(labels);
@@ -24,53 +24,25 @@ function EditLabelsModal({ isOpen, onClose, labels, setLabels, darkMode, onLabel
     );
   };
 
-  // New function to handle new label creation from LabelSelector
   const handleNewLabelAdd = (newLabel) => {
     setEditedLabels(prev => [...prev, newLabel]);
   };
 
   const handleSave = async () => {
-    setLoading(true);
-    setError(null);
     try {
       // Separate new labels (without id) and existing labels (with id)
       const newLabels = editedLabels.filter(label => !label.id);
       const existingLabels = editedLabels.filter(label => label.id);
 
-      // Save new labels via POST
+      // Save new labels via addLabel
       for (const label of newLabels) {
-        const response = await fetch('http://localhost:8000/labels.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: label.name,
-            color: label.color,
-          }),
-        });
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.message || 'Failed to create label');
-        }
-        const result = await response.json();
-        // Update label with returned id
-        label.id = result.id;
+        const createdLabel = await addLabel(label.name, label.color);
+        label.id = createdLabel.id;
       }
 
-      // Save existing labels via PUT
+      // Save existing labels via updateLabel
       for (const label of existingLabels) {
-        const response = await fetch('http://localhost:8000/labels.php', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: label.id,
-            name: label.name,
-            color: label.color,
-          }),
-        });
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.message || 'Failed to update label');
-        }
+        await updateLabel(label.id, label.name, label.color);
       }
 
       setLabels(editedLabels);
@@ -79,25 +51,14 @@ function EditLabelsModal({ isOpen, onClose, labels, setLabels, darkMode, onLabel
       }
       onClose();
     } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+      // error is handled in hook, but also set local error for display
+      console.error(err);
     }
   };
 
   const handleDelete = async (id) => {
-    setLoading(true);
-    setError(null);
     try {
-      const response = await fetch('http://localhost:8000/labels.php', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `id=${encodeURIComponent(id)}`,
-      });
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || 'Failed to delete label');
-      }
+      await deleteLabel(id);
       const updatedLabels = editedLabels.filter(label => label.id !== id);
       setEditedLabels(updatedLabels);
       setLabels(updatedLabels);
@@ -105,9 +66,7 @@ function EditLabelsModal({ isOpen, onClose, labels, setLabels, darkMode, onLabel
         onLabelsChange(updatedLabels);
       }
     } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+      console.error(err);
     }
   };
 

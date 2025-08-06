@@ -3,7 +3,7 @@
 include_once __DIR__ . '/static_uploads.php';
 
 // --- CORS Configuration ---
-header("Access-Control-Allow-Origin: http://localhost:3000");
+header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json; charset=UTF-8");
 header("Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
@@ -94,10 +94,29 @@ function handleGet($pdo) {
                           JOIN note_labels nl ON n.id = nl.note_id
                           JOIN labels l ON nl.label_id = l.id
                           WHERE l.name = :label";
+
                 $params = [':label' => $label];
+
+                if (isset($_GET['status'])) {
+                    $query .= " AND n.status = :status";
+                    $params[':status'] = $_GET['status'];
+                }
 
                 if (isset($_GET['type'])) {
                     $query .= " AND n.type = :type";
+                    $params[':type'] = $_GET['type'];
+                }
+            } elseif (isset($_GET['reminder']) && $_GET['reminder'] === 'not_null') {
+                $query = "SELECT id, title, content, type, created_at AS createdAt, color, pinned, image_url, drawing_data, status, reminder
+                          FROM notes
+                          WHERE reminder IS NOT NULL";
+                $params = [];
+                if (isset($_GET['status'])) {
+                    $query .= " AND status = :status";
+                    $params[':status'] = $_GET['status'];
+                }
+                if (isset($_GET['type'])) {
+                    $query .= " AND type = :type";
                     $params[':type'] = $_GET['type'];
                 }
             }
@@ -109,9 +128,16 @@ function handleGet($pdo) {
 
             if (count($conditions) > 0 && !isset($_GET['label'])) {
                 $query .= " WHERE " . implode(" AND ", $conditions);
+                $query .= " ORDER BY created_at DESC";
+            } elseif (isset($_GET['label'])) {
+                $query .= " ORDER BY n.created_at DESC";
+            } else {
+                $query .= " ORDER BY created_at DESC";
             }
 
-            $query .= " ORDER BY created_at DESC";
+            // Debug log final query and params
+            error_log('Final SQL Query: ' . $query);
+            error_log('Final Query Params: ' . json_encode($params));
 
             error_log('GET parameters: ' . json_encode($_GET));
             error_log('SQL Query: ' . $query);
@@ -188,6 +214,28 @@ function handlePost($pdo) {
     $labels = $data['labels'] ?? [];
     $image_url = $data['image_url'] ?? '';
 
+    // Normalize reminder to database datetime format or null
+    $reminderValue = $data['reminder'] ?? null;
+    $normalizedReminder = null;
+    if ($reminderValue !== '' && $reminderValue !== null) {
+        try {
+            if (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/', $reminderValue)) {
+                // Convert datetime-local to database format
+                $normalizedReminder = (new DateTime($reminderValue))->format('Y-m-d H:i:s');
+                error_log("Converted datetime-local to database format: " . $normalizedReminder);
+            } else {
+                // Validate existing ISO format
+                $date = new DateTime($reminderValue);
+                $normalizedReminder = $date->format('Y-m-d H:i:s');
+                error_log("Validated ISO format, storing as: " . $normalizedReminder);
+            }
+        } catch (Exception $e) {
+            error_log("Error processing reminder date: " . $e->getMessage());
+            error_log("Invalid reminder value: " . $reminderValue);
+            $normalizedReminder = null;
+        }
+    }
+
     // Validation based on note type
     if ($type === 'note' && (empty($title) && empty($content))) {
         http_response_code(400);
@@ -216,9 +264,10 @@ function handlePost($pdo) {
             ':pinned' => $pinned,
             ':image_url' => $image_url,
             ':drawing_data' => $drawing_data,
-            ':reminder' => $data['reminder'] ?? null
+            ':reminder' => $normalizedReminder
         ]);
         $id = $pdo->lastInsertId();
+
 
         // Insert labels into note_labels join table
         if (is_array($labels) && count($labels) > 0) {
@@ -344,6 +393,8 @@ function handlePut($pdo) {
         $fields = [];
         $params = [':id' => $id];
         
+        error_log('Reminder value received in PUT: ' . var_export($data['reminder'] ?? null, true));
+        
         if ($title !== null) {
             $fields[] = "title = :title";
             $params[':title'] = $title;
@@ -370,15 +421,46 @@ function handlePut($pdo) {
             $fields[] = "drawing_data = :drawing_data";
             $params[':drawing_data'] = $drawing_data;
         }
+        if (isset($data['reminder'])) {
+            $reminderValue = $data['reminder'];
+            error_log("Raw reminder value received: " . var_export($reminderValue, true));
+            $normalizedReminder = null;
+            
+            if ($reminderValue !== '' && $reminderValue !== null) {
+                try {
+                    error_log("Attempting to parse reminder: " . $reminderValue);
+                    // Handle both ISO format and datetime-local format
+                    if (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/', $reminderValue)) {
+                        // Convert datetime-local to ISO format
+                        $normalizedReminder = (new DateTime($reminderValue))->format('Y-m-d H:i:s');
+                        error_log("Converted datetime-local to database format: " . $normalizedReminder);
+                    } else {
+                        // Validate existing ISO format
+                        $date = new DateTime($reminderValue);
+                        $normalizedReminder = $date->format('Y-m-d H:i:s');
+                        error_log("Validated ISO format, storing as: " . $normalizedReminder);
+                    }
+                } catch (Exception $e) {
+                    error_log("Error processing reminder date: " . $e->getMessage());
+                    error_log("Invalid reminder value: " . $reminderValue);
+                    $normalizedReminder = null;
+                }
+            }
+            
+            $fields[] = "reminder = :reminder";
+            $params[':reminder'] = $normalizedReminder;
+            error_log("Final reminder value being saved: " . var_export($normalizedReminder, true));
+        }
         if (isset($data['status'])) {
             $fields[] = "status = :status";
             $params[':status'] = $data['status'];
         }
         $sql = "UPDATE notes SET " . implode(', ', $fields) . " WHERE id = :id";
         $stmt = $pdo->prepare($sql);
+
         $stmt->execute($params);
 
-        $stmt = $pdo->prepare("SELECT id, title, content, type, created_at AS createdAt, color, pinned, labels, image_url, drawing_data FROM notes WHERE id = :id");
+        $stmt = $pdo->prepare("SELECT id, title, content, type, created_at AS createdAt, color, pinned, labels, image_url, drawing_data, reminder FROM notes WHERE id = :id");
         $stmt->bindParam(':id', $id, PDO::PARAM_INT);
         $stmt->execute();
         $note = $stmt->fetch();
