@@ -5,6 +5,47 @@ function DrawingNoteCardDisplay({ drawingData, content, textColor, isEditing, on
   const ctxRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
 
+  const resolveToFirstImage = (data) => {
+    if (!data) return null;
+    if (Array.isArray(data)) {
+      const first = data.find((u) => typeof u === 'string' && u.trim() !== '');
+      return first || null;
+    }
+    if (typeof data === 'string') {
+      // Try parse JSON array string
+      try {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) {
+          const first = parsed.find((u) => typeof u === 'string' && u.trim() !== '');
+          return first || null;
+        }
+      } catch (_) {
+        // not JSON, assume data URL string
+      }
+      return data;
+    }
+    return null;
+  };
+
+  const resolveAllImages = (data) => {
+    if (!data) return [];
+    if (Array.isArray(data)) {
+      return data.filter((u) => typeof u === 'string' && u.trim() !== '');
+    }
+    if (typeof data === 'string') {
+      try {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((u) => typeof u === 'string' && u.trim() !== '');
+        }
+      } catch (_) {
+        // not JSON
+      }
+      return [data];
+    }
+    return [];
+  };
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;  // Add null check to prevent error
@@ -17,13 +58,14 @@ function DrawingNoteCardDisplay({ drawingData, content, textColor, isEditing, on
     ctx.lineWidth = 2;
     ctxRef.current = ctx;
 
-    if (drawingData) {
+    const imgSrc = resolveToFirstImage(drawingData);
+    if (imgSrc) {
       const image = new Image();
       image.onload = () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(image, 0, 0, canvas.width / 2, canvas.height / 2);
       };
-      image.src = drawingData;
+      image.src = imgSrc;
     } else {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
@@ -98,12 +140,27 @@ function DrawingNoteCardDisplay({ drawingData, content, textColor, isEditing, on
             Clear Drawing
           </button>
         </>
-      ) : drawingData ? (
-        <img src={drawingData} alt="Drawing" className="max-w-full max-h-64 h-auto rounded-md shadow-sm mb-2" />
       ) : (
-        <div className="w-24 h-24 bg-gray-200 dark:bg-gray-600 rounded-md flex items-center justify-center mb-2">
-          <span className="text-gray-500 dark:text-gray-400 text-xs">No Drawing</span>
-        </div>
+        (() => {
+          const imgs = resolveAllImages(drawingData);
+          if (imgs.length === 1) {
+            return <img src={imgs[0]} alt="Drawing" className="max-w-full max-h-64 h-auto rounded-md shadow-sm mb-2" />;
+          }
+          if (imgs.length > 1) {
+            return (
+              <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto w-full">
+                {imgs.map((src, i) => (
+                  <img key={i} src={src} alt={`Drawing ${i + 1}`} className="w-full h-32 object-contain rounded-md shadow-sm bg-white dark:bg-gray-800" />
+                ))}
+              </div>
+            );
+          }
+          return (
+            <div className="w-24 h-24 bg-gray-200 dark:bg-gray-600 rounded-md flex items-center justify-center mb-2">
+              <span className="text-gray-500 dark:text-gray-400 text-xs">No Drawing</span>
+            </div>
+          );
+        })()
       )}
       {/* This is where the content is now explicitly displayed */}
       {content && <p className={`text-sm mt-2 text-center ${textColor}`}>{highlightText(content, searchTerm)}</p>}

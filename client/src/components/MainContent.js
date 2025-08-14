@@ -129,10 +129,12 @@ export default function MainContent({
         color: newNote.color || '#ffffff',
         pinned: newNote.pinned || false,
         listItems: newNote.type === 'list' ? newNote.listItems : null,
-        drawing_data: newNote.type === 'drawing' ? newNote.drawingData : null,
-        image_url: newNote.type === 'image' ? newNote.imageData : null,
+        drawing_data: newNote.type === 'drawing' ? (newNote.drawing_data ?? null) : null,
+        image_url: newNote.type === 'image' ? (newNote.image_url ?? null) : null,
         category: newNote.category || null,
-        labels: newNote.labels || [],
+        labels: Array.isArray(newNote.labels)
+          ? newNote.labels.map(l => (typeof l === 'object' && l !== null && l.id ? l.id : l))
+          : [],
         reminder: newNote.reminder || null,
         status: 'active',
       };

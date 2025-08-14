@@ -368,6 +368,19 @@ function handlePut($pdo) {
     }
 
     $data = json_decode(file_get_contents('php://input'), true);
+    // Debug: log incoming PUT payload (with lengths for large fields)
+    $debugData = $data;
+    if (isset($debugData['image_url']) && is_string($debugData['image_url']) && strlen($debugData['image_url']) > 100) {
+        $debugData['image_url'] = 'STRING(len=' . strlen($debugData['image_url']) . ')';
+    }
+    if (isset($debugData['drawing_data']) && is_string($debugData['drawing_data']) && strlen($debugData['drawing_data']) > 100) {
+        $debugData['drawing_data'] = 'STRING(len=' . strlen($debugData['drawing_data']) . ')';
+    }
+    if (isset($debugData['listItems']) && is_array($debugData['listItems'])) {
+        $debugData['listItemsCount'] = count($debugData['listItems']);
+        unset($debugData['listItems']);
+    }
+    error_log('PUT payload: ' . json_encode($debugData));
     if (!$data || json_last_error() !== JSON_ERROR_NONE) {
         http_response_code(400);
         echo json_encode(['error' => true, 'message' => 'Invalid JSON data']);
@@ -409,17 +422,21 @@ function handlePut($pdo) {
         }
         if ($pinned !== null) {
             $fields[] = "pinned = :pinned";
-            $params[':pinned'] = $pinned;
+            // Normalize pinned to 0/1 integer to satisfy strict SQL modes
+            $params[':pinned'] = (int) (((int)$pinned === 1) || ($pinned === true) || ($pinned === '1'));
+            error_log('PUT normalized pinned to: ' . $params[':pinned']);
         }
         // Remove labels field update in notes table
         // Handle labels in note_labels join table instead
         if ($image_url !== null) {
             $fields[] = "image_url = :image_url";
             $params[':image_url'] = $image_url;
+            error_log('PUT will update image_url (len=' . (is_string($image_url) ? strlen($image_url) : 0) . ')');
         }
         if ($drawing_data !== null) {
             $fields[] = "drawing_data = :drawing_data";
             $params[':drawing_data'] = $drawing_data;
+            error_log('PUT will update drawing_data (len=' . (is_string($drawing_data) ? strlen($drawing_data) : 0) . ')');
         }
         if (isset($data['reminder'])) {
             $reminderValue = $data['reminder'];
@@ -455,10 +472,26 @@ function handlePut($pdo) {
             $fields[] = "status = :status";
             $params[':status'] = $data['status'];
         }
-        $sql = "UPDATE notes SET " . implode(', ', $fields) . " WHERE id = :id";
-        $stmt = $pdo->prepare($sql);
-
-        $stmt->execute($params);
+        // Only execute the UPDATE if we actually have fields to update.
+        if (!empty($fields)) {
+            $sql = "UPDATE notes SET " . implode(', ', $fields) . " WHERE id = :id";
+            error_log('PUT SQL: ' . $sql);
+            $paramLog = [];
+            foreach ($params as $k => $v) {
+                if (is_string($v)) {
+                    $paramLog[$k] = 'STRING(len=' . strlen($v) . ')';
+                } elseif (is_null($v)) {
+                    $paramLog[$k] = 'NULL';
+                } else {
+                    $paramLog[$k] = gettype($v) . '(' . json_encode($v) . ')';
+                }
+            }
+            error_log('PUT Params: ' . json_encode($paramLog));
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+        } else {
+            error_log('PUT: No direct fields to update; will only update listItems/labels if provided');
+        }
 
         $stmt = $pdo->prepare("SELECT id, title, content, type, created_at AS createdAt, color, pinned, labels, image_url, drawing_data, reminder FROM notes WHERE id = :id");
         $stmt->bindParam(':id', $id, PDO::PARAM_INT);
@@ -493,10 +526,15 @@ function handlePut($pdo) {
                 $stmtDeleteLabels = $pdo->prepare("DELETE FROM note_labels WHERE note_id = :note_id");
                 $stmtDeleteLabels->execute([':note_id' => $id]);
 
-                // Insert new labels
+                // Insert new labels (cast to int for safety)
                 $stmtInsertLabel = $pdo->prepare("INSERT INTO note_labels (note_id, label_id) VALUES (:note_id, :label_id)");
                 foreach ($labels as $labelId) {
-                    $stmtInsertLabel->execute([':note_id' => $id, ':label_id' => $labelId]);
+                    $labelIdInt = (int)$labelId;
+                    if ($labelIdInt <= 0) {
+                        error_log("PUT: Skipping invalid label ID: " . print_r($labelId, true));
+                        continue;
+                    }
+                    $stmtInsertLabel->execute([':note_id' => $id, ':label_id' => $labelIdInt]);
                 }
             }
 
@@ -512,6 +550,7 @@ function handlePut($pdo) {
             echo json_encode(['error' => true, 'message' => 'Note not found']);
         }
     } catch (PDOException $e) {
+        error_log('PUT exception: ' . $e->getMessage());
         http_response_code(500);
         echo json_encode(['error' => true, 'message' => 'Error updating note: ' . $e->getMessage()]);
     }

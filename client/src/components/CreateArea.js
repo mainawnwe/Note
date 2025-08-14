@@ -40,19 +40,16 @@ export default function CreateArea({
   }, [isCreating]);
 
   const handleSave = (note) => {
-    // Ensure note content is properly formatted without reversing
-    if (note && note.content && typeof note.content === 'string') {
-      // Create a new note object to avoid mutating the original
-      const correctedNote = {
-        ...note,
-        content: note.content, // Pass through content without transformation
-        pinned: isPinned,
-        color: noteColor
-      };
-      onAdd(correctedNote);
-    } else {
-      onAdd(note);
-    }
+    // Ensure the type matches the selected quick action
+    const resolvedType = note?.type || (noteType === 'text' ? 'note' : noteType);
+    const correctedNote = {
+      ...note,
+      type: resolvedType,
+      content: note?.content ?? '',
+      pinned: isPinned,
+      color: noteColor
+    };
+    onAdd(correctedNote);
     // Don't close the modal automatically after save
     return false; // Indicate that the modal should not be closed
   };
@@ -66,6 +63,11 @@ export default function CreateArea({
   const handleQuickCreate = (type) => {
     setNoteType(type);
     setIsCreating(true);
+    
+    // Ensure list items are properly initialized for list notes
+    if (type === 'list') {
+      // This will be handled by NoteEditor component
+    }
   };
 
   const quickActions = [

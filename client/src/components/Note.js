@@ -84,8 +84,8 @@ function Note(props) {
         color,
         type,
         listItems,
-        drawingData,
-        imageData,
+        drawing_data: drawingData,
+        image_url: imageData,
       });
     } else {
       setDetailsNote({
@@ -96,8 +96,8 @@ function Note(props) {
         color,
         type,
         listItems,
-        drawingData,
-        imageData,
+        drawing_data: drawingData,
+        image_url: imageData,
       });
       setIsDetailsModalOpen(true);
     }
@@ -146,8 +146,8 @@ function Note(props) {
               color,
               type,
               listItems,
-              drawingData,
-              imageData,
+              drawing_data: drawingData,
+              image_url: imageData,
             });
           }
         }}
