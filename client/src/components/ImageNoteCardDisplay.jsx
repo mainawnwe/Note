@@ -106,8 +106,8 @@ function ImageNoteCardDisplay({
           ) : isEditing ? (
             <div 
               className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors
-                        border-gray-300 dark:border-gray-600 hover:border-blue-500 dark:hover:border-blue-400
-                        bg-gray-50 dark:bg-gray-800"
+                        border-gray-300 dark:border-gray-600 hover:border-blue-500 dark:hover:border-blue-400"
+              style={{ background: 'transparent' }}
               onClick={handleAddImageClick}
             >
               <div className="flex flex-col items-center justify-center gap-2">
@@ -123,7 +123,7 @@ function ImageNoteCardDisplay({
               </div>
             </div>
           ) : (
-            <div className="w-24 h-24 bg-gray-200 dark:bg-gray-600 rounded-md flex items-center justify-center mb-2">
+            <div className="w-24 h-24 rounded-md flex items-center justify-center mb-2" style={{ background: 'transparent' }}>
               <span className="text-gray-500 dark:text-gray-400 text-xs">No Image</span>
             </div>
           )
@@ -132,8 +132,8 @@ function ImageNoteCardDisplay({
         ) : isEditing ? (
           <div 
             className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors
-                      border-gray-300 dark:border-gray-600 hover:border-blue-500 dark:hover:border-blue-400
-                      bg-gray-50 dark:bg-gray-800"
+                      border-gray-300 dark:border-gray-600 hover:border-blue-500 dark:hover:border-blue-400"
+            style={{ background: 'transparent' }}
             onClick={handleAddImageClick}
           >
             <div className="flex flex-col items-center justify-center gap-2">
@@ -149,7 +149,7 @@ function ImageNoteCardDisplay({
             </div>
           </div>
         ) : (
-          <div className="w-24 h-24 bg-gray-200 dark:bg-gray-600 rounded-md flex items-center justify-center mb-2">
+          <div className="w-24 h-24 rounded-md flex items-center justify-center mb-2" style={{ background: 'transparent' }}>
             <span className="text-gray-500 dark:text-gray-400 text-xs">No Image</span>
           </div>
         )}

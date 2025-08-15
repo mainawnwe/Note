@@ -15,6 +15,15 @@ const SidebarItem = ({ icon, label, isOpen, darkMode, onClick }) => (
 function Sidebar({ collapsed, allLabels, onToggleCollapse, onTabChange }) {
   const { darkMode } = useTheme();
 
+  // Normalize labels to an array of objects: { id, name }
+  // Supports inputs like ["Work", "Personal"] or [{ id: 'work', name: 'Work' }]
+  const labels = Array.isArray(allLabels)
+    ? allLabels
+        .map((l) => (typeof l === 'string' ? { id: l, name: l } : l))
+        .filter((l) => l && typeof l === 'object')
+        .map((l) => ({ id: l.id ?? l.name, name: l.name ?? String(l.id) }))
+    : [];
+
   return (
     <div
       className={`transition-all duration-300 h-screen flex flex-col sticky top-16 ${
@@ -44,9 +53,9 @@ function Sidebar({ collapsed, allLabels, onToggleCollapse, onTabChange }) {
           darkMode={darkMode}
           onClick={() => onTabChange('reminders')}
         />
-{allLabels && allLabels.length > 0 && (
+{labels.length > 0 && (
   <>
-    {allLabels.map(label => (
+    {labels.map(label => (
       <SidebarItem
         key={label.id}
         icon={<Tag />}

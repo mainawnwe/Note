@@ -164,7 +164,7 @@ function Note(props) {
             </h3>
           </div>
           {type === 'note' && (
-            <SimpleNoteDisplay content={content} textColor={getTextColor(color)} searchTerm={searchTerm} />
+            <SimpleNoteDisplay content={content} contentHtml={content} textColor={getTextColor(color)} searchTerm={searchTerm} />
           )}
           {type === 'list' && (
             <ListItemsDisplay listItems={listItems} onListItemsChange={() => {}} darkMode={darkMode} isEditing={false} searchTerm={searchTerm} />

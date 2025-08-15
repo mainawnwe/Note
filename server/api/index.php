@@ -126,8 +126,9 @@ function handleGet($pdo) {
                 $params[':type'] = $_GET['type'];
             }
 
+            $hasWhere = stripos($query, 'WHERE') !== false;
             if (count($conditions) > 0 && !isset($_GET['label'])) {
-                $query .= " WHERE " . implode(" AND ", $conditions);
+                $query .= ($hasWhere ? " AND " : " WHERE ") . implode(" AND ", $conditions);
                 $query .= " ORDER BY created_at DESC";
             } elseif (isset($_GET['label'])) {
                 $query .= " ORDER BY n.created_at DESC";

@@ -24,10 +24,7 @@ function EditLabelsModal({ isOpen, onClose, labels, setLabels, darkMode, onLabel
     );
   };
 
-  const handleNewLabelAdd = (newLabel) => {
-    setEditedLabels(prev => [...prev, newLabel]);
-  };
-
+  
   const handleSave = async () => {
     try {
       // Separate new labels (without id) and existing labels (with id)
@@ -103,7 +100,7 @@ function EditLabelsModal({ isOpen, onClose, labels, setLabels, darkMode, onLabel
           selectedLabels={editedLabels}
           onChange={setEditedLabels}
           darkMode={darkMode}
-          onLabelsChange={handleNewLabelAdd}
+          showList={false}
         />
         <div className="space-y-3 max-h-56 overflow-y-auto mt-6 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-700">
           {editedLabels.map(label => (

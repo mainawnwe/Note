@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useDebouncedCallback } from 'use-debounce';
 import clsx from 'clsx';
 import ReminderPicker from './ReminderPicker';
+import DrawingCanvas from './DrawingCanvas';
 import {
   Pin,
   Bell,
@@ -20,7 +21,8 @@ import {
   CheckSquare,
   Type,
   Edit3,
-  Plus
+  Plus,
+  Palette
 } from 'lucide-react';
 
 /*****************************************************************
@@ -119,6 +121,38 @@ function createBlocksFromInitial(initial, defaultType) {
       }
     }
 
+    // If content_html wasn't present, attempt to parse HTML from the plain content field
+    if (!parsedHtmlApplied) {
+      const contentMaybeHtml = initial.content;
+      if (typeof contentMaybeHtml === 'string' && /<\/?[a-z][\s\S]*>/i.test(contentMaybeHtml)) {
+        try {
+          const container = typeof document !== 'undefined' ? document.createElement('div') : null;
+          if (container) {
+            container.innerHTML = contentMaybeHtml;
+            const paragraphs = container.querySelectorAll('p');
+            const nodes = paragraphs.length ? Array.from(paragraphs) : [container];
+            nodes.forEach((el) => {
+              const text = el.textContent || '';
+              const hasBold = !!el.querySelector('b,strong');
+              const hasItalic = !!el.querySelector('i,em');
+              const hasUnderline = !!el.querySelector('u');
+              if (text.trim() !== '') {
+                blocks.push({
+                  id: generateId(),
+                  type: BLOCK_TYPES.TEXT,
+                  data: text,
+                  formatting: { bold: hasBold, italic: hasItalic, underline: hasUnderline }
+                });
+              }
+            });
+            if (blocks.length > 0) parsedHtmlApplied = true;
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+
     const content = initial.content;
     const isListType = initial.type === 'list';
     const isPlainListContent = (() => {
@@ -204,6 +238,8 @@ export default function NoteEditor({
   currentLabel,
   allLabels,
   setAllLabels,
+  onColorChange,
+  initialColor,
   noteType
 }) {
   /* ---------- state ---------- */
@@ -211,9 +247,11 @@ export default function NoteEditor({
     const fallback = {
       id: null,
       title: '',
-      blocks: [createEmptyBlock(noteType || BLOCK_TYPES.TEXT)],
+      blocks: ((noteType === 'image' || noteType === 'drawing')
+        ? [createEmptyBlock(noteType === 'image' ? BLOCK_TYPES.IMAGE : BLOCK_TYPES.DRAWING), createEmptyBlock(BLOCK_TYPES.TEXT)]
+        : [createEmptyBlock(noteType || BLOCK_TYPES.TEXT)]),
       type: noteType === 'text' ? 'note' : (noteType || 'note'),
-      color: darkMode ? '#202124' : '#ffffff',
+      color: initialColor ?? (darkMode ? '#202124' : '#ffffff'),
       labels: [],
       reminder: null,
       collaborators: [],
@@ -241,9 +279,11 @@ export default function NoteEditor({
           const fallback = {
             id: null,
             title: '',
-            blocks: [createEmptyBlock(noteType || BLOCK_TYPES.TEXT)],
+            blocks: ((noteType === 'image' || noteType === 'drawing')
+              ? [createEmptyBlock(noteType === 'image' ? BLOCK_TYPES.IMAGE : BLOCK_TYPES.DRAWING), createEmptyBlock(BLOCK_TYPES.TEXT)]
+              : [createEmptyBlock(noteType || BLOCK_TYPES.TEXT)]),
             type: noteType === 'text' ? 'note' : (noteType || 'note'),
-            color: darkMode ? '#202124' : '#ffffff',
+            color: initialColor ?? (darkMode ? '#202124' : '#ffffff'),
             labels: [],
             reminder: null,
             collaborators: [],
@@ -272,7 +312,9 @@ export default function NoteEditor({
       setNote((prev) => ({
         ...prev,
         type: noteType === 'text' ? 'note' : (noteType || 'note'),
-        blocks: [createEmptyBlock(blockType)],
+        blocks: (blockType === BLOCK_TYPES.IMAGE || blockType === BLOCK_TYPES.DRAWING)
+          ? [createEmptyBlock(blockType), createEmptyBlock(BLOCK_TYPES.TEXT)]
+          : [createEmptyBlock(blockType)],
         contentChanged: true,
       }));
     }
@@ -280,7 +322,11 @@ export default function NoteEditor({
 
   const [showReminderPicker, setShowReminderPicker] = useState(false);
   const [editLabelsModalOpen, setEditLabelsModalOpen] = useState(false);
-  const [selectedLabels, setSelectedLabels] = useState(note.labels || []);
+  const normalizeLabels = (arr) => Array.isArray(arr)
+    ? arr.map((l) => (typeof l === 'object' && l !== null ? String(l.id ?? l.name) : String(l))).filter(Boolean)
+    : [];
+  const [selectedLabels, setSelectedLabels] = useState(() => normalizeLabels(note.labels));
+  const [newLabel, setNewLabel] = useState('');
   const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const moreOptionsRef = useRef(null);
@@ -288,9 +334,15 @@ export default function NoteEditor({
 
   useEffect(() => {
     if (initialNote && initialNote.labels) {
-      setSelectedLabels(initialNote.labels);
+      setSelectedLabels(normalizeLabels(initialNote.labels));
     }
   }, [initialNote]);
+
+  useEffect(() => {
+    if (typeof onLabelsChange === 'function') {
+      onLabelsChange(selectedLabels);
+    }
+  }, [selectedLabels, onLabelsChange]);
 
   // Calculate dropdown position when it's opened
   useEffect(() => {
@@ -374,8 +426,8 @@ const handleSaveNote = async () => {
     // Build HTML content preserving block-level bold/italic/underline
     const escapeHtml = (s) => String(s || '')
       .replace(/&/g, '&amp;')
-      .replace(/</g, '<')
-      .replace(/>/g, '>');
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
     const content_html = textBlocks.map(b => {
       let inner = escapeHtml(b.data).replace(/\n/g, '<br/>');
       if (b?.formatting?.bold) inner = `<strong>${inner}</strong>`;
@@ -429,7 +481,7 @@ const handleSaveNote = async () => {
       reminder: note.reminder, // Ensure reminder is included
       ...note,
       type: resolvedType,
-      content: content,
+      content: resolvedType === 'note' ? content_html : content,
       content_html: content_html,
       listItems: listItems,
       drawing_data: drawing_data,
@@ -512,6 +564,24 @@ const handleSaveNote = async () => {
     setNote(prev => ({ ...prev, reminder: null }));
   };
 
+  const toggleLabel = (labelId) => {
+    const id = String(labelId);
+    setSelectedLabels(prev => (prev.includes(id) ? prev.filter(l => l !== id) : [...prev, id]));
+  };
+
+  const handleAddNewLabel = () => {
+    const name = newLabel.trim();
+    if (!name) return;
+    const list = Array.isArray(allLabels) ? allLabels : [];
+    const exists = list.some((l) => (typeof l === 'string' ? l === name : (l.name ?? l.id) === name));
+    if (!exists) {
+      const updated = [...list, { id: name, name }];
+      setAllLabels?.(updated);
+    }
+    setSelectedLabels(prev => (prev.includes(name) ? prev : [...prev, name]));
+    setNewLabel('');
+  };
+
   const handleLabelsChange = (labels) => {
     setSelectedLabels(labels);
   };
@@ -583,7 +653,7 @@ const handleSaveNote = async () => {
         isModal ? '' : 'rounded-2xl shadow-lg max-h-[90vh] overflow-y-auto',
         isModal ? '' : (darkMode ? 'bg-[#202124] text-[#bdc1c6]' : 'bg-white text-[#202124]')
       )}
-      style={isModal ? {} : { backgroundColor: note.color }}
+      style={{ backgroundColor: note.color }}
     >
       {/* Title and Pin */}
       <div className="flex justify-between items-center mb-4">
@@ -722,6 +792,20 @@ const handleSaveNote = async () => {
 
         <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
 
+        {/* Color Picker */}
+        <div className="flex items-center space-x-2">
+          <Palette className="w-4 h-4" />
+          <input
+            type="color"
+            value={note.color}
+            onChange={(e) => { const v = e.target.value; setNote(n => ({ ...n, color: v, contentChanged: true })); onColorChange?.(v); }}
+            title="Background color"
+            className="w-8 h-8 p-0 border-0 cursor-pointer rounded"
+          />
+        </div>
+
+        <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
+
         {/* Actions */}
         <div className="flex items-center space-x-1">
           <button
@@ -834,6 +918,21 @@ const handleSaveNote = async () => {
           Save
         </button>
 
+        {/* Current Reminder Status */}
+        {note.reminder && (
+          <div className={`ml-3 px-3 py-2 rounded-xl inline-flex items-center gap-2 ${darkMode ? 'bg-gray-800 text-gray-200' : 'bg-gray-100 text-gray-800'}`}>
+            <span className="text-sm">Reminder: {new Date(note.reminder).toLocaleString()}</span>
+            <button
+              type="button"
+              className={`px-2 py-1 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}
+              onClick={removeReminder}
+              title="Remove reminder"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
         {/* Close button */}
         <button
           type="button"
@@ -848,10 +947,12 @@ const handleSaveNote = async () => {
       </div>
 
       {/* Reminder Picker */}
-      {showReminderPicker && (
-        <div className={`absolute top-full left-0 mt-2 flex items-start justify-start z-50`}>
-          <div className={`w-64 rounded-xl shadow-xl p-4 ${darkMode ? 'bg-gray-900 text-gray-100 ring-1 ring-white ring-opacity-20' : 'bg-gray-50 text-gray-900 ring-1 ring-black ring-opacity-5'
-            }`} style={{ zIndex: 1000 }}>
+      {showReminderPicker && createPortal(
+        <div className="fixed inset-0 z-[1000] flex items-start justify-center" onClick={() => setShowReminderPicker(false)}>
+          <div
+            className={`${darkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-900'} rounded-xl shadow-2xl p-4 mt-16 ring-1 ${darkMode ? 'ring-white/20' : 'ring-black/10'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="font-medium mb-3">Set reminder</h3>
             <ReminderPicker
               reminder={note.reminder}
@@ -859,7 +960,8 @@ const handleSaveNote = async () => {
               onClose={() => setShowReminderPicker(false)}
             />
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Labels Modal */}
@@ -876,28 +978,39 @@ const handleSaveNote = async () => {
                 ×
               </button>
             </div>
+            <div className="flex space-x-2 mb-3">
+              <input
+                type="text"
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAddNewLabel(); }}
+                placeholder="Create new label"
+                className={`flex-1 px-3 py-2 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-700'}`}
+              />
+              <button
+                onClick={handleAddNewLabel}
+                className={`px-4 py-2 rounded-xl ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              >
+                Add
+              </button>
+            </div>
             <div className="max-h-60 overflow-y-auto">
-              {selectedLabels.map(label => (
-                <div
-                  key={label.id}
-                  className="flex items-center p-3 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl cursor-pointer transition-colors"
-                  onClick={() => {
-                    setSelectedLabels(prev =>
-                      prev.includes(label)
-                        ? prev.filter(l => l.id !== label.id)
-                        : [...prev, label]
-                    );
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedLabels.some(l => l.id === label.id)}
-                    className="mr-3"
-                    readOnly
-                  />
-                  <span>{label.name}</span>
-                </div>
-              ))}
+              {Array.isArray(allLabels) && allLabels.length > 0 ? (
+                allLabels
+                  .map((l) => (typeof l === 'string' ? { id: l, name: l } : { id: l.id ?? l.name, name: l.name ?? String(l.id) }))
+                  .map((labelObj) => (
+                    <label key={labelObj.id} className="flex items-center space-x-2 py-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedLabels.includes(String(labelObj.id))}
+                        onChange={() => toggleLabel(labelObj.id)}
+                      />
+                      <span>{labelObj.name}</span>
+                    </label>
+                  ))
+              ) : (
+                <p className="text-sm opacity-70">No labels yet</p>
+              )}
             </div>
             <div className="flex justify-end mt-4 space-x-2">
               <button
@@ -1080,6 +1193,11 @@ function TextBlock({ block, onUpdate, onRemove, onSplit, darkMode, onFocus, onTo
         className={`w-full resize-none bg-transparent outline-none text-base md:text-lg ${
           darkMode ? 'text-[#e8eaed] placeholder-gray-500' : 'text-[#202124] placeholder-gray-500'
         }`}
+        style={{
+          fontWeight: block?.formatting?.bold ? 'bold' : 'normal',
+          fontStyle: block?.formatting?.italic ? 'italic' : 'normal',
+          textDecoration: block?.formatting?.underline ? 'underline' : 'none',
+        }}
       />
       <button
         type="button"
@@ -1232,11 +1350,13 @@ function DrawingBlock({ block, onUpdate, onRemove, darkMode }) {
 
   return (
     <div className={`border rounded-2xl p-3 ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-      {image ? (
-        <img src={image} alt="Drawing" className="max-h-72 object-contain w-full rounded-xl" />
-      ) : (
-        <div className="text-sm text-gray-500">No drawing uploaded</div>
-      )}
+      <DrawingCanvas
+        onSave={(dataUrl) => onUpdate({ ...(block.data || {}), image: String(dataUrl) })}
+        initialDrawingData={image}
+        darkMode={darkMode}
+        drawingColor="#000000"
+        showControls={true}
+      />
       <div className="mt-3 flex gap-2 items-center">
         <label className={`px-3 py-2 rounded-xl cursor-pointer ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'}`}>
           Upload drawing

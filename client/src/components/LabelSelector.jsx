@@ -1,17 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import useLabels from '../hooks/useLabels';
 
-function LabelSelector({ selectedLabels, onChange, darkMode, onLabelsChange, onLabelClick }) {
+function LabelSelector({ selectedLabels, onChange, darkMode, onLabelClick }) {
   const { labels, loading, error, addLabel, deleteLabel } = useLabels();
   const [newLabelName, setNewLabelName] = useState('');
   const [newLabelColor, setNewLabelColor] = useState('#a7f3d0'); // default greenish
 
-  useEffect(() => {
-    if (onLabelsChange) {
-      onLabelsChange(labels);
-    }
-  }, [labels, onLabelsChange]);
-
+  
   const handleAddLabel = async () => {
     if (!newLabelName.trim()) return;
     try {

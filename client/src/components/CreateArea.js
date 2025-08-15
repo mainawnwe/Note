@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import NoteEditor from './NoteEditor';
-import { Plus, Type, List, Image, Edit3, Pin, Palette, Trash2, X } from 'lucide-react';
+import { Plus, Type, List, Image, Edit3, Pin, Trash2, X } from 'lucide-react';
 
 export default function CreateArea({
   onAdd,
@@ -11,11 +11,11 @@ export default function CreateArea({
   setAllLabels,
 }) {
   const [isCreating, setIsCreating] = useState(false);
-  const [noteType, setNoteType] = useState('text');
+  const [noteType, setNoteType] = useState('note');
+  const [selectedLabels, setSelectedLabels] = useState([]); // Define selectedLabels
   const [isPinned, setIsPinned] = useState(false);
   const [noteColor, setNoteColor] = useState(darkMode ? '#1f2937' : '#ffffff');
-  const createButtonRef = useRef(null);
-
+  
   // Handle Escape key to close modal
   useEffect(() => {
     const handleEscKey = (event) => {
@@ -37,21 +37,32 @@ export default function CreateArea({
       window.removeEventListener('keydown', handleEscKey);
       window.removeEventListener('keydown', handleKeyboardShortcut);
     };
-  }, [isCreating]);
+  }, [isCreating, darkMode]);
 
   const handleSave = (note) => {
-    // Ensure the type matches the selected quick action
-    const resolvedType = note?.type || (noteType === 'text' ? 'note' : noteType);
+    // Resolve type and labels robustly
+    const resolvedType = note?.type || noteType;
+    // Normalize incoming labels to IDs (strings)
+    const incoming = Array.isArray(note?.labels)
+      ? note.labels
+          .map((l) => (typeof l === 'object' && l !== null ? String(l.id ?? l.name) : String(l)))
+          .filter(Boolean)
+      : [];
+
+    const fallbackLabels = currentLabel ? [String(currentLabel.id ?? currentLabel.name)] : [];
+    const finalLabels = incoming.length ? incoming : fallbackLabels;
+
     const correctedNote = {
       ...note,
       type: resolvedType,
       content: note?.content ?? '',
       pinned: isPinned,
-      color: noteColor
+      color: note?.color ?? noteColor,
+      labels: finalLabels,
     };
     onAdd(correctedNote);
-    // Don't close the modal automatically after save
-    return false; // Indicate that the modal should not be closed
+    // Keep modal open; NoteEditor may choose to close by returning true
+    return false;
   };
 
   const handleCancel = () => {
@@ -70,25 +81,16 @@ export default function CreateArea({
     }
   };
 
+  
   const quickActions = [
-    { type: 'text', icon: Type, label: 'Text', color: 'bg-blue-500' },
+    { type: 'note', icon: Type, label: 'Text', color: 'bg-blue-500' },
     { type: 'list', icon: List, label: 'List', color: 'bg-green-500' },
     { type: 'image', icon: Image, label: 'Image', color: 'bg-purple-500' },
     { type: 'drawing', icon: Edit3, label: 'Drawing', color: 'bg-orange-500' },
   ];
 
-  const colorOptions = [
-    { name: 'default', value: darkMode ? '#1f2937' : '#ffffff' },
-    { name: 'red', value: '#f8d7da' },
-    { name: 'orange', value: '#fff3cd' },
-    { name: 'yellow', value: '#fef9c3' },
-    { name: 'green', value: '#d1e7dd' },
-    { name: 'teal', value: '#cff4fc' },
-    { name: 'blue', value: '#cfe2ff' },
-    { name: 'purple', value: '#e9d5ff' },
-    { name: 'pink', value: '#f9d6e5' },
-  ];
-
+  
+  
   // Base classes for dark/light mode
   const bgClass = darkMode ? 'bg-gray-800' : 'bg-white';
   const textClass = darkMode ? 'text-gray-200' : 'text-gray-700';
@@ -103,7 +105,6 @@ export default function CreateArea({
           <div
             className={`relative group cursor-pointer rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 ${bgClass} overflow-hidden border ${borderClass}`}
             onClick={() => setIsCreating(true)}
-            ref={createButtonRef}
             style={{ backgroundColor: noteColor }}
           >
             <div className="p-5">
@@ -150,7 +151,7 @@ export default function CreateArea({
           aria-modal="true"
         >
           <div
-            className={`rounded-2xl shadow-2xl w-[95vw] max-w-2xl max-h-[90vh] m-4 transition-all duration-300 transform scale-100 overflow-hidden border ${borderClass}`}
+            className={`rounded-2xl shadow-2xl w-[95vw] max-w-2xl max-h-[90vh] m-4 transition-all duration-300 transform scale-100 overflow-visible border ${borderClass}`}
             onClick={(e) => e.stopPropagation()}
             style={{ backgroundColor: noteColor }}
           >
@@ -187,31 +188,8 @@ export default function CreateArea({
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-2">
-                  <div className="relative group">
-                    <button
-                      className={`p-2 rounded-full transition-all duration-200 ${darkMode ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                        }`}
-                      title="Change color"
-                    >
-                      <Palette className="w-5 h-5" />
-                    </button>
-
-                    <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block bg-white dark:bg-gray-800 rounded-xl shadow-xl p-3 z-10 border border-gray-200 dark:border-gray-700">
-                      <div className="grid grid-cols-3 gap-2">
-                        {colorOptions.map((color) => (
-                          <button
-                            key={color.name}
-                            className="w-8 h-8 rounded-full border border-gray-300 dark:border-gray-600 transition-transform hover:scale-110"
-                            style={{ backgroundColor: color.value }}
-                            onClick={() => setNoteColor(color.value)}
-                            title={color.name}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
+                <div className="flex items-center space-x-2 relative z-20">
+                  
                   <button
                     onClick={handleCancel}
                     className={`p-2 rounded-full transition-all duration-200 ${darkMode ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
@@ -226,7 +204,13 @@ export default function CreateArea({
               {/* Editor Area */}
               <div className="flex-grow overflow-y-auto p-6" style={{ direction: 'ltr' }}>
                 <NoteEditor
-                  initialNote={null}
+                  initialNote={{
+                    type: noteType,
+                    labels: selectedLabels, // Use selectedLabels instead
+                    pinned: isPinned,
+                    color: noteColor,
+                    content: ''
+                  }}
                   onSave={(note) => {
                     const shouldClose = handleSave(note);
                     if (shouldClose) {
@@ -240,6 +224,8 @@ export default function CreateArea({
                   currentLabel={currentLabel}
                   allLabels={allLabels}
                   setAllLabels={setAllLabels}
+                  onColorChange={(c) => setNoteColor(c)}
+                  initialColor={noteColor}
                   noteType={noteType}
                 />
               </div>
