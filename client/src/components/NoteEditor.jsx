@@ -24,7 +24,6 @@ import {
   Plus,
   Palette
 } from 'lucide-react';
-
 /*****************************************************************
  * Constants & helpers
  *****************************************************************/
@@ -54,7 +53,6 @@ const createEmptyBlock = (type) => {
       return createEmptyBlock(BLOCK_TYPES.TEXT);
   }
 };
-
 // Build blocks from an initial note object, including text, list, drawing, and image types
 function createBlocksFromInitial(initial, defaultType) {
   const blocks = [];
@@ -120,7 +118,6 @@ function createBlocksFromInitial(initial, defaultType) {
         // ignore parse errors and fall back to plain content
       }
     }
-
     // If content_html wasn't present, attempt to parse HTML from the plain content field
     if (!parsedHtmlApplied) {
       const contentMaybeHtml = initial.content;
@@ -152,7 +149,6 @@ function createBlocksFromInitial(initial, defaultType) {
         }
       }
     }
-
     const content = initial.content;
     const isListType = initial.type === 'list';
     const isPlainListContent = (() => {
@@ -223,7 +219,6 @@ function createBlocksFromInitial(initial, defaultType) {
   }
   return blocks;
 }
-
 /*****************************************************************
  * Root component
  *****************************************************************/
@@ -249,7 +244,10 @@ export default function NoteEditor({
       title: '',
       blocks: ((noteType === 'image' || noteType === 'drawing')
         ? [createEmptyBlock(noteType === 'image' ? BLOCK_TYPES.IMAGE : BLOCK_TYPES.DRAWING), createEmptyBlock(BLOCK_TYPES.TEXT)]
-        : [createEmptyBlock(noteType || BLOCK_TYPES.TEXT)]),
+        : (noteType === 'list'
+            ? [{ id: generateId(), type: BLOCK_TYPES.CHECKLIST, data: [{ id: generateId(), text: '', checked: false }] }, createEmptyBlock(BLOCK_TYPES.TEXT)]
+            : [createEmptyBlock(noteType || BLOCK_TYPES.TEXT)]
+          )),
       type: noteType === 'text' ? 'note' : (noteType || 'note'),
       color: initialColor ?? (darkMode ? '#202124' : '#ffffff'),
       labels: [],
@@ -261,65 +259,71 @@ export default function NoteEditor({
       contentChanged: false,
     };
     if (!initialNote) return fallback;
-
     // Build blocks from all available data types
     const blocks = createBlocksFromInitial(initialNote, noteType);
-
     return {
       ...fallback,
       ...initialNote,
       blocks: blocks
     };
   });
-
   useEffect(() => {
-    if (initialNote) {
-      setNote((prevNote) => {
-        if (!prevNote.id || prevNote.id !== initialNote.id) {
-          const fallback = {
-            id: null,
-            title: '',
-            blocks: ((noteType === 'image' || noteType === 'drawing')
-              ? [createEmptyBlock(noteType === 'image' ? BLOCK_TYPES.IMAGE : BLOCK_TYPES.DRAWING), createEmptyBlock(BLOCK_TYPES.TEXT)]
-              : [createEmptyBlock(noteType || BLOCK_TYPES.TEXT)]),
-            type: noteType === 'text' ? 'note' : (noteType || 'note'),
-            color: initialColor ?? (darkMode ? '#202124' : '#ffffff'),
-            labels: [],
-            reminder: null,
-            collaborators: [],
-            status: 'active',
-            pinned: false,
-            lastModified: new Date(),
-            contentChanged: false,
-          };
-
-          const blocks = createBlocksFromInitial(initialNote, noteType);
-          return { ...fallback, ...initialNote, blocks };
-        }
-        return prevNote;
-      });
-    }
-  }, [initialNote, darkMode, noteType]);
-
+    // Only rebuild state when switching between existing notes (with a real id)
+    if (!initialNote || !initialNote.id) return;
+    setNote((prevNote) => {
+      if (prevNote.id !== initialNote.id) {
+        const fallback = {
+          id: null,
+          title: '',
+          blocks: ((noteType === 'image' || noteType === 'drawing')
+            ? [createEmptyBlock(noteType === 'image' ? BLOCK_TYPES.IMAGE : BLOCK_TYPES.DRAWING), createEmptyBlock(BLOCK_TYPES.TEXT)]
+            : (noteType === 'list'
+                ? [{ id: generateId(), type: BLOCK_TYPES.CHECKLIST, data: [{ id: generateId(), text: '', checked: false }] }, createEmptyBlock(BLOCK_TYPES.TEXT)]
+                : [createEmptyBlock(noteType || BLOCK_TYPES.TEXT)]
+              )),
+          type: noteType === 'text' ? 'note' : (noteType || 'note'),
+          color: initialColor ?? (darkMode ? '#202124' : '#ffffff'),
+          labels: [],
+          reminder: null,
+          collaborators: [],
+          status: 'active',
+          pinned: false,
+          lastModified: new Date(),
+          contentChanged: false,
+        };
+        const blocks = createBlocksFromInitial(initialNote, noteType);
+        return { ...fallback, ...initialNote, blocks };
+      }
+      return prevNote;
+    });
+  }, [initialNote]);
   // When creating a new note (no initialNote), rebuild blocks when noteType changes
   useEffect(() => {
-    if (!initialNote) {
+    // In creation mode (no existing note id), rebuild blocks when switching type
+    if (!initialNote || !initialNote.id) {
       const blockType = noteType === 'list' ? BLOCK_TYPES.CHECKLIST :
         noteType === 'drawing' ? BLOCK_TYPES.DRAWING :
           noteType === 'image' ? BLOCK_TYPES.IMAGE :
             BLOCK_TYPES.TEXT;
-
+      let newBlocks;
+      if (blockType === BLOCK_TYPES.IMAGE || blockType === BLOCK_TYPES.DRAWING) {
+        newBlocks = [createEmptyBlock(blockType), createEmptyBlock(BLOCK_TYPES.TEXT)];
+      } else if (blockType === BLOCK_TYPES.CHECKLIST) {
+        newBlocks = [
+          { id: generateId(), type: BLOCK_TYPES.CHECKLIST, data: [{ id: generateId(), text: '', checked: false }] },
+          createEmptyBlock(BLOCK_TYPES.TEXT)
+        ];
+      } else {
+        newBlocks = [createEmptyBlock(blockType)];
+      }
       setNote((prev) => ({
         ...prev,
         type: noteType === 'text' ? 'note' : (noteType || 'note'),
-        blocks: (blockType === BLOCK_TYPES.IMAGE || blockType === BLOCK_TYPES.DRAWING)
-          ? [createEmptyBlock(blockType), createEmptyBlock(BLOCK_TYPES.TEXT)]
-          : [createEmptyBlock(blockType)],
+        blocks: newBlocks,
         contentChanged: true,
       }));
     }
   }, [noteType, initialNote]);
-
   const [showReminderPicker, setShowReminderPicker] = useState(false);
   const [editLabelsModalOpen, setEditLabelsModalOpen] = useState(false);
   const normalizeLabels = (arr) => Array.isArray(arr)
@@ -331,64 +335,52 @@ export default function NoteEditor({
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const moreOptionsRef = useRef(null);
   const [activeBlockId, setActiveBlockId] = useState(null);
-
   useEffect(() => {
     if (initialNote && initialNote.labels) {
       setSelectedLabels(normalizeLabels(initialNote.labels));
     }
   }, [initialNote]);
-
   useEffect(() => {
     if (typeof onLabelsChange === 'function') {
       onLabelsChange(selectedLabels);
     }
   }, [selectedLabels, onLabelsChange]);
-
   // Calculate dropdown position when it's opened
   useEffect(() => {
     if (showMoreOptions && moreOptionsRef.current) {
       const buttonRect = moreOptionsRef.current.getBoundingClientRect();
       const viewportHeight = window.innerHeight;
       const viewportWidth = window.innerWidth;
-
       // Calculate the ideal position for the dropdown
       let top = buttonRect.bottom;
       let left = buttonRect.left;
-
       // Check if dropdown would go off the bottom of the screen
       if (top + 200 > viewportHeight) {
         // Position above the button instead
         top = buttonRect.top - 200;
       }
-
       // Check if dropdown would go off the right of the screen
       if (left + 192 > viewportWidth) { // 192px is the width of the dropdown
         left = viewportWidth - 192; // Align to the right edge
       }
-
       // Check if dropdown would go off the left of the screen
       if (left < 0) {
         left = 0; // Align to the left edge
       }
-
       setDropdownPosition({ top, left });
     }
   }, [showMoreOptions]);
-
   // Close dropdown when scrolling or resizing
   useEffect(() => {
     const handleScroll = () => setShowMoreOptions(false);
     const handleResize = () => setShowMoreOptions(false);
-
     window.addEventListener('scroll', handleScroll);
     window.addEventListener('resize', handleResize);
-
     return () => {
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleResize);
     };
   }, []);
-
   /* ---------- save function ---------- */
   // Ensure drawings are baked with selected background color before saving
   const bakeImageWithBg = (imageUrl, color) => new Promise((resolve) => {
@@ -407,22 +399,17 @@ export default function NoteEditor({
     img.onerror = () => resolve(imageUrl);
     img.src = imageUrl;
   });
-
 const handleSaveNote = async () => {
     // Extract content from blocks for database storage
     console.log('Current note blocks:', note.blocks);
-
     // Collect all text blocks once and reuse
     const textBlocks = note.blocks.filter(block => block.type === BLOCK_TYPES.TEXT);
-
     // Plain text content (newline-separated)
     const content = textBlocks
       .map(block => block.data || '')
       .join('\n')
       .trim();
-
     console.log('Extracted content:', content);
-
     // Build HTML content preserving block-level bold/italic/underline
     const escapeHtml = (s) => String(s || '')
       .replace(/&/g, '&amp;')
@@ -435,14 +422,11 @@ const handleSaveNote = async () => {
       if (b?.formatting?.underline) inner = `<u>${inner}</u>`;
       return `<p>${inner}</p>`;
     }).join('');
-
     // Determine note type for saving
     const resolvedType = note.type || (noteType === 'text' ? 'note' : (noteType || 'note'));
-
     // Collect list items from all checklist blocks
     const checklistBlocks = note.blocks.filter(block => block.type === BLOCK_TYPES.CHECKLIST);
     const listItems = checklistBlocks.flatMap(block => Array.isArray(block.data) ? block.data : []);
-
     // Collect drawing data: support multiple drawing blocks -> JSON array, single block -> string
     const drawingBlocks = note.blocks.filter(block => block.type === BLOCK_TYPES.DRAWING);
     const bakedImages = await Promise.all(
@@ -459,7 +443,6 @@ const handleSaveNote = async () => {
         drawing_data = drawingImages.join(',');
       }
     }
-
     // Collect image URLs (support multiple image blocks)
     const imageBlocks = note.blocks.filter(block => block.type === BLOCK_TYPES.IMAGE);
     const imageUrls = imageBlocks
@@ -475,7 +458,6 @@ const handleSaveNote = async () => {
         image_url = imageUrls.join(',');
       }
     }
-
     console.log('Reminder value before saving:', note.reminder); // Log reminder value
     const saveData = {
       reminder: note.reminder, // Ensure reminder is included
@@ -489,9 +471,7 @@ const handleSaveNote = async () => {
       labels: selectedLabels,
       lastModified: new Date()
     };
-
     console.log('Saving note:', saveData);
-
     // For existing notes, pass (id, data). For new notes, pass (data).
     if (note.id) {
       await onSave?.(note.id, saveData);
@@ -499,32 +479,26 @@ const handleSaveNote = async () => {
       await onSave?.(saveData);
     }
   };
-
   // Auto-save for existing notes when content changes
   const debouncedSave = useDebouncedCallback(() => {
     if (note.contentChanged && note.id) {
       handleSaveNote();
     }
   }, 2000);
-
   useEffect(() => {
     if (note.contentChanged && note.id) {
       debouncedSave();
     }
   }, [note, debouncedSave, selectedLabels]);
-
   /* ---------- updaters ---------- */
   const update = (updater) =>
     setNote((n) => ({ ...updater(n), contentChanged: true }));
-
   const updateTitle = (title) => update((n) => ({ ...n, title }));
-
   const updateBlock = (blockId, data) =>
     update((n) => ({
       ...n,
       blocks: n.blocks.map((b) => (b.id === blockId ? { ...b, data } : b)),
     }));
-
   const addBlock = (type, index) =>
     update((n) => ({
       ...n,
@@ -534,10 +508,8 @@ const handleSaveNote = async () => {
         ...n.blocks.slice(index + 1),
       ],
     }));
-
   const removeBlock = (blockId) =>
     update((n) => ({ ...n, blocks: n.blocks.filter((b) => b.id !== blockId) }));
-
   const splitBlock = (index, textAfter) =>
     update((n) => {
       const newBlocks = [...n.blocks];
@@ -553,22 +525,18 @@ const handleSaveNote = async () => {
       newBlocks[index + 1].data = textAfter;
       return { ...n, blocks: newBlocks };
     });
-
   /* ---------- handlers ---------- */
   const handleSetReminder = (date) => {
     setNote(prev => ({ ...prev, reminder: date }));
     setShowReminderPicker(false);
   };
-
   const removeReminder = () => {
     setNote(prev => ({ ...prev, reminder: null }));
   };
-
   const toggleLabel = (labelId) => {
     const id = String(labelId);
     setSelectedLabels(prev => (prev.includes(id) ? prev.filter(l => l !== id) : [...prev, id]));
   };
-
   const handleAddNewLabel = () => {
     const name = newLabel.trim();
     if (!name) return;
@@ -581,14 +549,11 @@ const handleSaveNote = async () => {
     setSelectedLabels(prev => (prev.includes(name) ? prev : [...prev, name]));
     setNewLabel('');
   };
-
   const handleLabelsChange = (labels) => {
     setSelectedLabels(labels);
   };
-
   const getActiveTextBlock = () =>
     note.blocks.find((b) => b.id === activeBlockId && b.type === BLOCK_TYPES.TEXT);
-
   const updateBlockFormatting = (blockId, patch) =>
     update((n) => ({
       ...n,
@@ -606,7 +571,6 @@ const handleSaveNote = async () => {
           : b
       ),
     }));
-
   const toggleActiveFormatting = (key) => {
     let blk = getActiveTextBlock();
     if (!blk) {
@@ -620,11 +584,9 @@ const handleSaveNote = async () => {
     const current = !!(blk.formatting?.[key]);
     updateBlockFormatting(blk.id, { [key]: !current });
   };
-
   const handleAddBlock = (type) => {
     addBlock(type, note.blocks.length - 1);
   };
-
   // Toggle formatting on a specific text block (used by keyboard shortcuts in TextBlock)
   const toggleFormattingForBlock = (blockId, key) => {
     const blk = note.blocks.find((b) => b.id === blockId && b.type === BLOCK_TYPES.TEXT);
@@ -633,12 +595,10 @@ const handleSaveNote = async () => {
     updateBlockFormatting(blockId, { [key]: !current });
     setActiveBlockId(blockId);
   };
-
   const handleMoreOptionsClick = (e) => {
     e.stopPropagation();
     setShowMoreOptions(!showMoreOptions);
   };
-
   /* ---------- render ---------- */
   const activeFormatting = (() => {
     const blk = note.blocks.find((b) => b.id === activeBlockId && b.type === BLOCK_TYPES.TEXT);
@@ -648,7 +608,7 @@ const handleSaveNote = async () => {
     <div
       className={clsx(
         'note-editor relative flex flex-col w-full',
-        isModal ? 'max-w-none' : 'max-w-2xl mx-auto',
+        isModal ? 'max-w-none max-h-[80vh] overflow-hidden' : 'max-w-2xl mx-auto',
         isModal ? 'space-y-6' : 'space-y-4',
         isModal ? '' : 'rounded-2xl shadow-lg max-h-[90vh] overflow-y-auto',
         isModal ? '' : (darkMode ? 'bg-[#202124] text-[#bdc1c6]' : 'bg-white text-[#202124]')
@@ -676,9 +636,9 @@ const handleSaveNote = async () => {
           <Pin className={`w-5 h-5 ${note.pinned ? 'fill-current' : ''}`} />
         </button>
       </div>
-
       {/* Blocks */}
-      <div className="blocks space-y-4">
+      <div className="flex-1 overflow-y-auto pb-64">
+        <div className="blocks space-y-4">
         {note.blocks.map((block, idx) => (
           <React.Fragment key={block.id}>
             <Block
@@ -690,19 +650,12 @@ const handleSaveNote = async () => {
               onFocus={() => setActiveBlockId(block.id)}
               onToggleFormatting={toggleFormattingForBlock}
             />
-            {idx < note.blocks.length - 1 && (
-              <AddBetween
-                index={idx}
-                onAdd={(type) => addBlock(type, idx)}
-                darkMode={darkMode}
-              />
-            )}
-          </React.Fragment>
+                      </React.Fragment>
         ))}
       </div>
-
+      </div>
       {/* Toolbar */}
-      <div className={`flex flex-wrap items-center gap-2 mt-6 p-3 rounded-2xl ${darkMode ? 'bg-gray-800/50' : 'bg-gray-100/50'
+      <div className={`sticky bottom-[160px] z-20 flex flex-wrap items-center gap-2 mt-6 p-3 rounded-2xl ${darkMode ? 'bg-gray-800/80' : 'bg-gray-100/80'
         } backdrop-blur-sm`}>
         {/* Text Formatting */}
         <div className="flex items-center space-x-1">
@@ -743,9 +696,7 @@ const handleSaveNote = async () => {
             <Underline className="w-4 h-4" />
           </button>
         </div>
-
         <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
-
         {/* Block Types */}
         <div className="flex items-center space-x-1">
           <button
@@ -789,9 +740,7 @@ const handleSaveNote = async () => {
             <Edit3 className="w-4 h-4" />
           </button>
         </div>
-
         <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
-
         {/* Color Picker */}
         <div className="flex items-center space-x-2">
           <Palette className="w-4 h-4" />
@@ -803,9 +752,7 @@ const handleSaveNote = async () => {
             className="w-8 h-8 p-0 border-0 cursor-pointer rounded"
           />
         </div>
-
         <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
-
         {/* Actions */}
         <div className="flex items-center space-x-1">
           <button
@@ -836,7 +783,6 @@ const handleSaveNote = async () => {
           >
             <Archive className="w-4 h-4" />
           </button>
-
           <div className="relative">
             <button
               ref={moreOptionsRef}
@@ -849,7 +795,6 @@ const handleSaveNote = async () => {
             >
               <MoreVertical className="w-4 h-4" />
             </button>
-
             {showMoreOptions && createPortal(
               <div
                 className="fixed z-50"
@@ -881,9 +826,7 @@ const handleSaveNote = async () => {
             )}
           </div>
         </div>
-
         <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
-
         {/* Undo/Redo */}
         <div className="flex items-center space-x-1">
           <button
@@ -905,7 +848,6 @@ const handleSaveNote = async () => {
             <Redo className="w-4 h-4" />
           </button>
         </div>
-
         {/* Save button */}
         <button
           type="button"
@@ -917,7 +859,6 @@ const handleSaveNote = async () => {
         >
           Save
         </button>
-
         {/* Current Reminder Status */}
         {note.reminder && (
           <div className={`ml-3 px-3 py-2 rounded-xl inline-flex items-center gap-2 ${darkMode ? 'bg-gray-800 text-gray-200' : 'bg-gray-100 text-gray-800'}`}>
@@ -932,7 +873,6 @@ const handleSaveNote = async () => {
             </button>
           </div>
         )}
-
         {/* Close button */}
         <button
           type="button"
@@ -945,7 +885,6 @@ const handleSaveNote = async () => {
           <X className="w-4 h-4" />
         </button>
       </div>
-
       {/* Reminder Picker */}
       {showReminderPicker && createPortal(
         <div className="fixed inset-0 z-[1000] flex items-start justify-center" onClick={() => setShowReminderPicker(false)}>
@@ -963,7 +902,6 @@ const handleSaveNote = async () => {
         </div>,
         document.body
       )}
-
       {/* Labels Modal */}
       {editLabelsModalOpen && createPortal(
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setEditLabelsModalOpen(false)}>
@@ -1033,7 +971,6 @@ const handleSaveNote = async () => {
         </div>,
         document.body
       )}
-
       {/* Action bar (hover only) */}
       <ActionBar
         note={note}
@@ -1047,25 +984,21 @@ const handleSaveNote = async () => {
     </div>
   );
 }
-
 /*****************************************************************
  * Title field - Using textarea instead of contentEditable
  *****************************************************************/
 function TitleField({ value, onChange, darkMode }) {
   const [internalValue, setInternalValue] = useState(value);
   const textareaRef = useRef(null);
-
   // Update internal value when prop changes
   useEffect(() => {
     setInternalValue(value);
   }, [value]);
-
   const handleChange = (e) => {
     const newValue = e.target.value;
     setInternalValue(newValue);
     onChange(newValue);
   };
-
   // Auto-resize textarea
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -1081,7 +1014,6 @@ function TitleField({ value, onChange, darkMode }) {
       };
     }
   }, [internalValue]);
-
   return (
     <textarea
       ref={textareaRef}
@@ -1094,7 +1026,6 @@ function TitleField({ value, onChange, darkMode }) {
     />
   );
 }
-
 /*****************************************************************
  * Blocks and helpers
  *****************************************************************/
@@ -1143,13 +1074,10 @@ function Block({ block, onUpdate, onRemove, onSplit, darkMode, onFocus, onToggle
       return null;
   }
 }
-
 function TextBlock({ block, onUpdate, onRemove, onSplit, darkMode, onFocus, onToggleFormatting }) {
   const ref = useRef(null);
   const [value, setValue] = useState(block.data || '');
-
   useEffect(() => setValue(block.data || ''), [block.data]);
-
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -1161,7 +1089,6 @@ function TextBlock({ block, onUpdate, onRemove, onSplit, darkMode, onFocus, onTo
     el.addEventListener('input', resize);
     return () => el.removeEventListener('input', resize);
   }, [value]);
-
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -1180,7 +1107,6 @@ function TextBlock({ block, onUpdate, onRemove, onSplit, darkMode, onFocus, onTo
       if (key) onToggleFormatting?.(block.id, key);
     }
   };
-
   return (
     <div className={`relative group`}>
       <textarea
@@ -1212,30 +1138,24 @@ function TextBlock({ block, onUpdate, onRemove, onSplit, darkMode, onFocus, onTo
     </div>
   );
 }
-
 function ChecklistBlock({ block, onUpdate, onRemove, darkMode }) {
   const items = Array.isArray(block.data) ? block.data : [];
-
   const toggleItem = (id) => {
     const updated = items.map(it => it.id === id ? { ...it, checked: !it.checked } : it);
     onUpdate(updated);
   };
-
   const updateText = (id, text) => {
     const updated = items.map(it => it.id === id ? { ...it, text } : it);
     onUpdate(updated);
   };
-
   const addItem = () => {
     const newItem = { id: generateId(), text: '', checked: false };
     onUpdate([...(items || []), newItem]);
   };
-
   const removeItem = (id) => {
     const updated = items.filter(it => it.id !== id);
     onUpdate(updated);
   };
-
   return (
     <div className="space-y-2">
       {items.map((it) => (
@@ -1287,10 +1207,8 @@ function ChecklistBlock({ block, onUpdate, onRemove, darkMode }) {
     </div>
   );
 }
-
 function ImageBlock({ block, onUpdate, onRemove, darkMode }) {
   const url = block?.data?.url || block?.data?.base64 || '';
-
   const handleFile = (file) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -1298,7 +1216,6 @@ function ImageBlock({ block, onUpdate, onRemove, darkMode }) {
     };
     reader.readAsDataURL(file);
   };
-
   return (
     <div className={`border rounded-2xl p-3 ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
       {url ? (
@@ -1336,10 +1253,9 @@ function ImageBlock({ block, onUpdate, onRemove, darkMode }) {
     </div>
   );
 }
-
 function DrawingBlock({ block, onUpdate, onRemove, darkMode }) {
   const image = block?.data?.image || '';
-
+  const [drawingColor, setDrawingColor] = useState('#000000');
   const handleFile = (file) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -1347,14 +1263,14 @@ function DrawingBlock({ block, onUpdate, onRemove, darkMode }) {
     };
     reader.readAsDataURL(file);
   };
-
   return (
     <div className={`border rounded-2xl p-3 ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
       <DrawingCanvas
         onSave={(dataUrl) => onUpdate({ ...(block.data || {}), image: String(dataUrl) })}
         initialDrawingData={image}
         darkMode={darkMode}
-        drawingColor="#000000"
+        drawingColor={drawingColor}
+        setDrawingColor={setDrawingColor}
         showControls={true}
       />
       <div className="mt-3 flex gap-2 items-center">
@@ -1378,45 +1294,10 @@ function DrawingBlock({ block, onUpdate, onRemove, darkMode }) {
     </div>
   );
 }
-
-function AddBetween({ index, onAdd, darkMode }) {
-  return (
-    <div className="flex items-center justify-center gap-2">
-      <button
-        type="button"
-        className={`px-3 py-1.5 rounded-xl text-sm inline-flex items-center gap-1 ${darkMode ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-        onClick={() => onAdd(BLOCK_TYPES.TEXT)}
-      >
-        <Type className="w-4 h-4" /> Text
-      </button>
-      <button
-        type="button"
-        className={`px-3 py-1.5 rounded-xl text-sm inline-flex items-center gap-1 ${darkMode ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-        onClick={() => onAdd(BLOCK_TYPES.CHECKLIST)}
-      >
-        <CheckSquare className="w-4 h-4" /> Checklist
-      </button>
-      <button
-        type="button"
-        className={`px-3 py-1.5 rounded-xl text-sm inline-flex items-center gap-1 ${darkMode ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-        onClick={() => onAdd(BLOCK_TYPES.IMAGE)}
-      >
-        <ImageIcon className="w-4 h-4" /> Image
-      </button>
-      <button
-        type="button"
-        className={`px-3 py-1.5 rounded-xl text-sm inline-flex items-center gap-1 ${darkMode ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-        onClick={() => onAdd(BLOCK_TYPES.DRAWING)}
-      >
-        <Edit3 className="w-4 h-4" /> Drawing
-      </button>
-    </div>
-  );
-}
-
 function ActionBar({ note, setNote, onDelete, onCancel, darkMode, setShowReminderPicker, setEditLabelsModalOpen }) {
   return (
-    <div className={`mt-6 flex items-center gap-2 p-3 rounded-2xl ${darkMode ? 'bg-gray-800/50' : 'bg-gray-100/50'}`}>
+    <div className={`sticky bottom-[80px] z-30 mt-2 flex items-center gap-2 p-3 rounded-2xl ${darkMode ? 'bg-gray-800/80' : 'bg-gray-100/80'} backdrop-blur-sm`}>
+      <span className={`text-xs sm:text-sm mr-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Press Esc to cancel</span>
       <button
         type="button"
         className={`px-3 py-2 rounded-xl ${darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-200'}`}

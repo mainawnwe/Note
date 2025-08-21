@@ -167,7 +167,25 @@ function Note(props) {
             <SimpleNoteDisplay content={content} contentHtml={content} textColor={getTextColor(color)} searchTerm={searchTerm} />
           )}
           {type === 'list' && (
-            <ListItemsDisplay listItems={listItems} onListItemsChange={() => {}} darkMode={darkMode} isEditing={false} searchTerm={searchTerm} />
+            <>
+              {content && String(content).trim() !== '' && (
+                <div className="mb-2">
+                  <SimpleNoteDisplay
+                    content={content}
+                    contentHtml={content}
+                    textColor={getTextColor(color)}
+                    searchTerm={searchTerm}
+                  />
+                </div>
+              )}
+              <ListItemsDisplay
+                listItems={listItems}
+                onListItemsChange={() => {}}
+                darkMode={darkMode}
+                isEditing={false}
+                searchTerm={searchTerm}
+              />
+            </>
           )}
           {type === 'drawing' && (
             <DrawingNoteCardDisplay

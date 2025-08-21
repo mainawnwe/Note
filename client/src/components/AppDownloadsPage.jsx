@@ -5,12 +5,13 @@ import logo from '../assets/note-edit-svgrepo-com.svg';
 
 const PlatformCard = ({ icon, title, description, color }) => {
   const [hovered, setHovered] = useState(false);
-  
+
   return (
-    <div 
-      className={`relative p-5 rounded-2xl transition-all duration-500 overflow-hidden group ${
-        hovered ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gray-800/50'
-      }`}
+    <div
+      className={`relative p-5 rounded-2xl transition-all duration-500 overflow-hidden group ${hovered
+          ? 'bg-gradient-to-br from-teal-800/50 to-cyan-800/50 border border-teal-700/50'
+          : 'bg-teal-900/30 backdrop-blur-sm'
+        }`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -19,27 +20,30 @@ const PlatformCard = ({ icon, title, description, color }) => {
           <div className={`p-2 rounded-xl ${color} mr-4`}>
             {icon}
           </div>
-          <h3 className="text-xl font-bold">{title}</h3>
+          <h3 className="text-xl font-bold text-white">{title}</h3>
         </div>
-        <p className="text-gray-400 mb-4">{description}</p>
-        <button 
-          className={`flex items-center mt-auto ${hovered ? 'text-white' : 'text-gray-400'} transition-colors`}
+        <p className="text-teal-100/80 mb-4">{description}</p>
+        <button
+          className={`flex items-center mt-auto px-4 py-2 rounded-lg transition-all ${hovered
+              ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-lg'
+              : 'bg-teal-800/50 text-teal-200'
+            }`}
         >
           <Download className="w-4 h-4 mr-2" />
           <span>Download</span>
         </button>
       </div>
-      
+
       {/* Animated background elements */}
       <div className={`absolute inset-0 transition-opacity duration-500 ${hovered ? 'opacity-100' : 'opacity-0'}`}>
-        <div 
+        <div
           className="absolute top-0 left-0 w-full h-full"
           style={{
             background: `radial-gradient(600px at ${hovered ? '40% 50%' : '50% 50%'}, ${color.replace('bg-', '')}/10, transparent 80%)`,
             transition: 'all 0.8s cubic-bezier(0.22, 1, 0.36, 1)'
           }}
         />
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDQwIDQwIj48cGF0aCBkPSJNMCAwaDQwdjQwSDB6IiBmaWxsPSJub25lIi8+PHBhdGggZD0iTTAgMGg0MHY0MEgweiIgZmlsbD0ibm9uZSIvPjxjaXJjbGUgY3g9IjIwIiBjeT0iMjAiIHI9IjEuNSIgZmlsbD0iI2ZmZiIgZmlsbC1vcGFjaXR5PSIwLjEiLz48L3N2Zz4=')] opacity-10" 
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDQwIDQwIj48cGF0aCBkPSJNMCAwaDQwdjQwSDB6IiBmaWxsPSJub25lIi8+PHBhdGggZD0iTTAgMGg0MHY0MEgweiIgZmlsbD0ibm9uZSIvPjxjaXJjbGUgY3g9IjIwIiBjeT0iMjAiIHI9IjEuNSIgZmlsbD0iI2ZmZiIgZmlsbC1vcGFjaXR5PSIwLjEiLz48L3N2Zz4=')] opacity-10"
         />
       </div>
     </div>
@@ -82,17 +86,17 @@ export default function AppDownloadsPage() {
   ];
 
   return (
-    <div className="flex flex-col lg:flex-row h-full min-h-screen min-w-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
+    <div className="flex flex-col lg:flex-row h-full min-h-screen min-w-screen bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-50">
       {/* Left Panel - App Preview */}
       <div className="w-full lg:w-2/5 relative">
-        <div className="absolute inset-0 bg-gradient-to-br from-violet-600/20 via-purple-600/10 to-pink-500/5 z-0" />
-        
+        <div className="absolute inset-0 bg-gradient-to-br from-teal-600/20 via-cyan-600/10 to-blue-500/5 z-0" />
+
         {/* Floating Particles */}
         <div className="absolute inset-0">
           {[...Array(25)].map((_, i) => (
-            <div 
+            <div
               key={i}
-              className="absolute rounded-full bg-white/5"
+              className="absolute rounded-full bg-teal-500/10"
               style={{
                 width: `${Math.random() * 10 + 3}px`,
                 height: `${Math.random() * 10 + 3}px`,
@@ -104,52 +108,52 @@ export default function AppDownloadsPage() {
             />
           ))}
         </div>
-        
+
         {/* Floating Device Mockups */}
         <div className="relative z-10 h-full flex flex-col items-center justify-center p-8">
           <div className="relative group">
-            <div className="absolute -inset-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-3xl blur-xl opacity-30 group-hover:opacity-50 transition-all duration-500" />
-            
-            <div className="relative bg-gradient-to-br from-gray-900 to-gray-800 p-10 rounded-2xl shadow-2xl border border-gray-700/50 transform group-hover:-translate-y-1 transition-transform duration-500">
+            <div className="absolute -inset-4 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-3xl blur-xl opacity-30 group-hover:opacity-50 transition-all duration-500" />
+
+            <div className="relative bg-gradient-to-br from-white to-teal-50 p-10 rounded-2xl shadow-2xl border border-teal-200/50 transform group-hover:-translate-y-1 transition-transform duration-500">
               <img
                 src={logo}
                 alt="Note App"
                 className="w-48 h-48 object-contain mx-auto"
               />
             </div>
-            
+
             <div className="text-center mt-8">
-              <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+              <h2 className="text-3xl font-bold bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent">
                 Notes Anywhere
               </h2>
-              <p className="text-gray-400 mt-2">
+              <p className="text-teal-700 mt-2">
                 Sync your thoughts across all devices
               </p>
             </div>
           </div>
         </div>
-        
+
         {/* BACK BUTTON MODIFIED TO GO TO HOME PAGE */}
         <button
           onClick={() => navigate('/')}
-          className="absolute top-6 left-6 flex items-center text-gray-300 hover:text-white transition-colors duration-300 group cursor-pointer z-50"
+          className="absolute top-6 left-6 flex items-center text-teal-700 hover:text-teal-900 transition-colors duration-300 group cursor-pointer z-50"
         >
           <ArrowLeft className="w-5 h-5 mr-2 transition-transform group-hover:-translate-x-1" />
           <span className="font-medium">Back to Home</span>
         </button>
       </div>
-      
+
       {/* Right Panel - Download Options */}
-      <div className="w-full lg:w-3/5 bg-gradient-to-b from-gray-900/80 to-gray-900 backdrop-blur-sm p-8 flex flex-col">
+      <div className="w-full lg:w-3/5 bg-gradient-to-b from-teal-50/80 to-cyan-50/80 backdrop-blur-sm p-8 flex flex-col">
         <div className="mb-10">
-          <h1 className="text-4xl font-bold text-white mb-4">
+          <h1 className="text-4xl font-bold text-teal-900 mb-4">
             Get the App
           </h1>
-          <p className="text-gray-400 max-w-md">
+          <p className="text-teal-700 max-w-md">
             Download Notes Anywhere on your favorite platform and sync your thoughts across all devices
           </p>
         </div>
-        
+
         <div className="grid grid-cols-1 gap-5 flex-grow">
           {platforms.map((platform, index) => (
             <PlatformCard
@@ -161,21 +165,21 @@ export default function AppDownloadsPage() {
             />
           ))}
         </div>
-        
-        <div className="mt-8 pt-8 border-t border-gray-800/50">
-          <div className="flex items-center text-gray-500">
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
+
+        <div className="mt-8 pt-8 border-t border-teal-200/50">
+          <div className="flex items-center text-teal-700">
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-teal-300 to-transparent" />
             <span className="px-4 text-sm">Also available on</span>
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-teal-300 to-transparent" />
           </div>
           <div className="flex justify-center mt-4 space-x-6">
-            <button className="text-gray-400 hover:text-white transition-colors">
+            <button className="text-teal-700 hover:text-teal-900 transition-colors">
               <span className="text-sm">Web App</span>
             </button>
-            <button className="text-gray-400 hover:text-white transition-colors">
+            <button className="text-teal-700 hover:text-teal-900 transition-colors">
               <span className="text-sm">Windows</span>
             </button>
-            <button className="text-gray-400 hover:text-white transition-colors">
+            <button className="text-teal-700 hover:text-teal-900 transition-colors">
               <span className="text-sm">MacOS</span>
             </button>
           </div>

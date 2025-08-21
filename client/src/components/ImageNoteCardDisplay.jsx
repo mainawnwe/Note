@@ -1,4 +1,5 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
+import { RotateCcw, Trash2 } from 'lucide-react';
 
 function ImageNoteCardDisplay({ 
   imageData, 
@@ -6,11 +7,15 @@ function ImageNoteCardDisplay({
   textColor, 
   isEditing, 
   onImageChange,
-  searchTerm
+  searchTerm,
+  isInTrash = false,
+  onRestore,
+  onPermanentDelete,
+  darkMode
 }) {
   const fileInputRef = useRef(null);
-
-  console.log('ImageNoteCardDisplay received imageData:', imageData);
+  const [isHovered, setIsHovered] = useState(false);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
@@ -44,6 +49,18 @@ function ImageNoteCardDisplay({
 
   const handleAddImageClick = () => {
     fileInputRef.current.click();
+  };
+
+  const handleRestore = () => {
+    if (onRestore) onRestore();
+  };
+
+  const handlePermanentDelete = () => {
+    setShowDeleteConfirmation(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (onPermanentDelete) onPermanentDelete();
   };
 
   function highlightText(text, searchTerm) {
@@ -95,7 +112,11 @@ function ImageNoteCardDisplay({
   );
 
   return (
-    <div className="flex flex-col gap-3">
+    <div 
+      className="flex flex-col gap-3 relative"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       {/* Image Display/Edit Area */}
       <div className="relative">
         {Array.isArray(imageData) ? (
@@ -169,6 +190,34 @@ function ImageNoteCardDisplay({
         <p className={`text-sm mt-2 ${textColor} break-words`}>
           {highlightText(content, searchTerm)}
         </p>
+      )}
+
+      {/* Trash Controls */}
+      {isInTrash && (
+        <div className={`absolute bottom-2 right-2 flex space-x-1 transition-opacity ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
+          <button
+            onClick={handleRestore}
+            className={`flex items-center px-2 py-1 rounded text-xs font-medium transition-colors ${darkMode
+                ? 'bg-teal-900/30 text-teal-400 hover:bg-teal-800/50'
+                : 'bg-teal-100 text-teal-700 hover:bg-teal-200'
+              }`}
+            title="Restore note"
+          >
+            <RotateCcw className="h-3 w-3 mr-1" />
+            Restore
+          </button>
+          <button
+            onClick={handlePermanentDelete}
+            className={`flex items-center px-2 py-1 rounded text-xs font-medium transition-colors ${darkMode
+                ? 'bg-red-900/30 text-red-400 hover:bg-red-800/50'
+                : 'bg-red-100 text-red-700 hover:bg-red-200'
+              }`}
+            title="Delete forever"
+          >
+            <Trash2 className="h-3 w-3 mr-1" />
+            Delete
+          </button>
+        </div>
       )}
     </div>
   );

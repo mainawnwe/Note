@@ -12,6 +12,7 @@ import { SettingsProvider } from './context/SettingsContext';
 import AppDownloadsPage from './components/AppDownloadsPage';
 import EditLabelsModal from './components/EditLabelsModal';
 import CreateArea from './components/CreateArea';
+import TrashWithMultiSelect from './components/TrashWithMultiSelect';
 
 function AppContent() {
   const { user, loading, logout } = useContext(AuthContext);
@@ -35,25 +36,26 @@ function AppContent() {
   const [notesLoading, setNotesLoading] = useState(false);
   const [notes, setNotes] = useState([]);
 
-  useEffect(() => {
-    const fetchLabels = async () => {
-      try {
-        const response = await fetch('http://localhost:8000/labels.php');
-        if (!response.ok) {
-          console.error('Labels fetch failed with status:', response.status);
-          throw new Error('Failed to fetch labels');
-        }
-        const data = await response.json();
-        if (!Array.isArray(data)) {
-          console.error('Labels fetch returned invalid data:', data);
-          throw new Error('Invalid labels data');
-        }
-        setAllLabels(data);
-      } catch (err) {
-        console.error('Error fetching labels:', err);
-        setAllLabels([]); // Clear labels on error
+  const fetchLabels = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/labels.php');
+      if (!response.ok) {
+        console.error('Labels fetch failed with status:', response.status);
+        throw new Error('Failed to fetch labels');
       }
-    };
+      const data = await response.json();
+      if (!Array.isArray(data)) {
+        console.error('Labels fetch returned invalid data:', data);
+        throw new Error('Invalid labels data');
+      }
+      setAllLabels(data);
+    } catch (err) {
+      console.error('Error fetching labels:', err);
+      setAllLabels([]); // Clear labels on error
+    }
+  };
+
+  useEffect(() => {
     fetchLabels();
   }, []);
 
@@ -365,7 +367,7 @@ function AppContent() {
               />
             } />
             <Route path="/trash" element={
-              <MainContent
+              <TrashWithMultiSelect
                 isGridView={isGridView}
                 searchTerm={searchTerm}
                 selectedCategory={'trashed'}

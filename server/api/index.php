@@ -205,11 +205,12 @@ function handlePost($pdo) {
     $listItems = $data['listItems'] ?? null;
     $drawing_data = $data['drawing_data'] ?? null;
 
-    // For list type, concatenate listItems text into content string
+    // For list type, preserve typed text content and append checklist items into content string
     if ($type === 'list' && is_array($listItems)) {
-        $content = implode("\n", array_map(function($item) {
+        $listText = implode("\n", array_map(function($item) {
             return isset($item['text']) ? $item['text'] : '';
         }, $listItems));
+        $content = trim((string)$content) !== '' ? trim((string)$content) . "\n" . $listText : $listText;
     }
 
     $labels = $data['labels'] ?? [];
@@ -577,13 +578,39 @@ function handleDelete($pdo) {
         echo json_encode(['error' => true, 'message' => 'Note ID required']);
         return;
     }
-    if (!$id) {
-        http_response_code(400);
-        echo json_encode(['error' => true, 'message' => 'Invalid note ID']);
-        return;
-    }
+
+    // Check if this is a permanent delete request
+    $permanent = isset($_GET['permanent']) && $_GET['permanent'] == '1';
 
     try {
+        if ($permanent) {
+            // Permanent delete: remove from database completely
+            $pdo->beginTransaction();
+            
+            // Delete related data first (foreign key constraints)
+            $stmt = $pdo->prepare("DELETE FROM note_labels WHERE note_id = :id");
+            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+            $stmt->execute();
+            
+            $stmt = $pdo->prepare("DELETE FROM note_items WHERE note_id = :id");
+            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+            $stmt->execute();
+            
+            // Delete the note itself
+            $stmt = $pdo->prepare("DELETE FROM notes WHERE id = :id");
+            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+            $stmt->execute();
+            
+            $pdo->commit();
+
+            if ($stmt->rowCount() > 0) {
+                http_response_code(200);
+                echo json_encode(['success' => true, 'message' => 'Note permanently deleted']);
+            } else {
+                http_response_code(404);
+                echo json_encode(['error' => true, 'message' => 'Note not found']);
+            }
+        } else {
             // Soft delete: set status to 'trashed' instead of deleting
             $stmt = $pdo->prepare("UPDATE notes SET status = 'trashed' WHERE id = :id");
             $stmt->bindParam(':id', $id, PDO::PARAM_INT);
@@ -596,7 +623,11 @@ function handleDelete($pdo) {
                 http_response_code(404);
                 echo json_encode(['error' => true, 'message' => 'Note not found']);
             }
+        }
     } catch (PDOException $e) {
+        if ($permanent) {
+            $pdo->rollBack();
+        }
         http_response_code(500);
         echo json_encode(['error' => true, 'message' => 'Error deleting note: ' . $e->getMessage()]);
     }

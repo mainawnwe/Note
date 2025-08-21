@@ -26,28 +26,25 @@ function Header({
   user = {},
   onSignOut = () => { },
   allLabels = [],
-  setAllLabels = () => {},
+  setAllLabels = () => { },
   searchTerm,
   setSearchTerm,
   isSearchFocused,
   setIsSearchFocused,
   notesLoading,
-  onToggleSidebar = () => {}
+  onToggleSidebar = () => { }
 }) {
   console.log('Header user prop:', user);
   const { darkMode, toggleDarkMode } = useTheme();
-
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState('Notes');
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [isEditLabelsOpen, setIsEditLabelsOpen] = useState(false);
-
   const menuRef = useRef(null);
   const profileRef = useRef(null);
   const searchBarRef = useRef(null);
   const dropdownRef = useRef(null);
-
   const navigate = useNavigate();
 
   // Log profile picture URL when user or profile_picture changes
@@ -61,9 +58,7 @@ function Header({
   const toggleView = () => {
     onToggleView(!isGridView);
   };
-
   const toggleMenu = () => setMenuOpen(!menuOpen);
-  // Removed toggleSettings and settingsOpen state as they are now handled in SettingsMenu
   const toggleProfile = () => setProfileOpen(!profileOpen);
 
   const handleRefresh = async () => {
@@ -146,7 +141,6 @@ function Header({
       icon: <Tag className="h-5 w-5" />,
       onClick: () => handleMenuItemClick(label.name)
     })),
-    // Removed Profile menu item as per user request
     {
       id: 'edit-labels',
       title: "Edit Labels",
@@ -175,17 +169,14 @@ function Header({
           setter(false);
         }
       };
-
       closeIfOutside(menuRef, setMenuOpen);
       closeIfOutside(profileRef, setProfileOpen);
-
       // Close search dropdown if click outside search bar and dropdown
       if (searchBarRef.current && !searchBarRef.current.contains(event.target) &&
-          dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsSearchFocused(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
@@ -194,34 +185,36 @@ function Header({
     <>
       {/* Main Header */}
       <header className={`sticky top-0 z-50 border-b backdrop-blur-sm transition-all duration-300 ${darkMode
-        ? 'bg-gray-900/90 border-gray-700 shadow-lg'
-        : 'bg-white/95 border-gray-200 shadow-sm'
+          ? 'bg-gradient-to-r from-gray-900/90 to-gray-800/90 border-gray-700 shadow-lg'
+          : 'bg-gradient-to-r from-teal-50/95 via-cyan-50/95 to-blue-50/95 border-gray-200 shadow-sm'
         }`}>
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
-
             {/* Left Section - Main Menu Button and Logo */}
             <div className="flex items-center space-x-4 relative">
-              {/* Removed menu toggle button */}
               {/* Animated Logo */}
               <div
                 className="flex items-center space-x-2 group cursor-pointer z-20"
                 onClick={() => navigate('/')}
               >
-                <div className={`p-2 rounded-lg transition-all duration-300 group-hover:scale-105 ${darkMode ? 'bg-amber-600 shadow-amber-900/50' : 'bg-amber-500 shadow-amber-400/50'
-                  } shadow-lg`}>
+                <div className={`p-2 rounded-xl transition-all duration-300 group-hover:scale-105 shadow-lg ${darkMode
+                    ? 'bg-gradient-to-br from-teal-600 to-cyan-700 shadow-teal-900/50'
+                    : 'bg-gradient-to-br from-teal-500 to-cyan-600 shadow-teal-400/50'
+                  }`}>
                   <img
                     src={require('../assets/note-edit-svgrepo-com.svg').default}
                     alt="Project Logo"
-                    className="h-6 w-6 filter invert transition-transform duration-300 group-hover:rotate-12"
+                    className={`h-6 w-6 transition-transform duration-300 group-hover:rotate-12 ${darkMode ? 'filter invert' : ''
+                      }`}
                   />
                 </div>
-                <h1 className={`text-xl font-bold hidden md:block bg-gradient-to-r ${darkMode ? 'from-amber-400 to-amber-300' : 'from-amber-600 to-amber-500'
+                <h1 className={`text-xl font-bold hidden md:block bg-gradient-to-r ${darkMode
+                    ? 'from-teal-400 to-cyan-300'
+                    : 'from-teal-600 to-cyan-500'
                   } bg-clip-text text-transparent tracking-tight`}>
                   Keep Note
                 </h1>
               </div>
-
             </div>
 
             {/* Center Section - Search Bar */}
@@ -248,7 +241,7 @@ function Header({
               />
               {isSearchFocused && (
                 <div
-                  className="absolute top-full left-0 w-full z-50 mt-2 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-300 dark:border-gray-700"
+                  className="absolute top-full left-0 w-full z-50 mt-2 bg-white/90 dark:bg-gray-900/90 backdrop-blur-lg rounded-xl shadow-lg border border-gray-300 dark:border-gray-700 overflow-hidden"
                   onMouseDown={(e) => {
                     // Prevent blur when clicking inside dropdown
                     e.preventDefault();
@@ -272,10 +265,10 @@ function Header({
                 onClick={() => {
                   toggleView();
                 }}
-                className={`p-2 rounded-lg transition-all duration-200 ${darkMode
-                  ? 'hover:bg-gray-800/80 text-gray-300'
-                  : 'hover:bg-amber-100 text-gray-700'
-                  } ${!isGridView ? (darkMode ? 'bg-gray-800/80' : 'bg-amber-100') : ''}`}
+                className={`p-2 rounded-xl transition-all duration-200 ${darkMode
+                    ? 'hover:bg-gray-800/80 text-gray-300'
+                    : 'hover:bg-teal-100 text-gray-700'
+                  } ${!isGridView ? (darkMode ? 'bg-gray-800/80' : 'bg-teal-100') : ''}`}
                 aria-label={isGridView ? "Switch to list view" : "Switch to grid view"}
               >
                 {isGridView ? (
@@ -291,10 +284,10 @@ function Header({
                   handleRefresh();
                 }}
                 disabled={notesLoading}
-                className={`p-2 rounded-lg transition-all duration-200 ${darkMode
-                  ? 'hover:bg-gray-800/80 text-gray-300'
-                  : 'hover:bg-amber-100 text-gray-700'
-                  } ${notesLoading ? (darkMode ? 'bg-gray-800/30' : 'bg-amber-100/30') : ''}`}
+                className={`p-2 rounded-xl transition-all duration-200 ${darkMode
+                    ? 'hover:bg-gray-800/80 text-gray-300'
+                    : 'hover:bg-teal-100 text-gray-700'
+                  } ${notesLoading ? (darkMode ? 'bg-gray-800/30' : 'bg-teal-100/30') : ''}`}
                 aria-label="Refresh notes"
               >
                 <RefreshCw className={`h-5 w-5 ${notesLoading ? 'animate-spin' : ''}`} />
@@ -303,9 +296,9 @@ function Header({
               {/* Dark Mode Toggle */}
               <button
                 onClick={toggleDarkMode}
-                className={`p-2 rounded-lg transition-all duration-200 ${darkMode
-                  ? 'hover:bg-gray-800/80 text-amber-400'
-                  : 'hover:bg-amber-100 text-amber-600'
+                className={`p-2 rounded-xl transition-all duration-200 ${darkMode
+                    ? 'hover:bg-gray-800/80 text-teal-400'
+                    : 'hover:bg-teal-100 text-teal-600'
                   }`}
                 aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
               >
@@ -322,10 +315,10 @@ function Header({
               <div className="relative">
                 <button
                   onClick={toggleProfile}
-                  className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg transition-all duration-200 ${darkMode
-                    ? 'hover:bg-gray-800/80 text-gray-300'
-                    : 'hover:bg-amber-100 text-gray-700'
-                    } ${profileOpen ? (darkMode ? 'bg-gray-800/80' : 'bg-amber-100') : ''}`}
+                  className={`flex items-center space-x-1 px-3 py-1.5 rounded-xl transition-all duration-200 ${darkMode
+                      ? 'hover:bg-gray-800/80 text-gray-300'
+                      : 'hover:bg-teal-100 text-gray-700'
+                    } ${profileOpen ? (darkMode ? 'bg-gray-800/80' : 'bg-teal-100') : ''}`}
                   aria-label="User profile"
                   aria-expanded={profileOpen}
                 >
@@ -337,7 +330,7 @@ function Header({
                       style={{ width: '32px', height: '32px', objectFit: 'cover' }}
                     />
                   ) : (
-                    <div className={`bg-gradient-to-br rounded-full w-8 h-8 flex items-center justify-center text-white font-medium shadow-md transition-transform duration-300 hover:scale-105 ${darkMode ? 'from-amber-500 to-amber-600' : 'from-amber-400 to-amber-500'
+                    <div className={`bg-gradient-to-br rounded-full w-8 h-8 flex items-center justify-center text-white font-medium shadow-md transition-transform duration-300 hover:scale-105 ${darkMode ? 'from-teal-500 to-cyan-600' : 'from-teal-400 to-cyan-500'
                       }`}>
                       {(user?.username || user?.name)?.charAt(0).toUpperCase() || 'U'}
                     </div>
@@ -348,34 +341,36 @@ function Header({
                 {profileOpen && (
                   <div
                     ref={profileRef}
-                    className={`absolute top-full right-0 mt-2 w-64 rounded-xl shadow-xl z-50 overflow-hidden transition-all duration-200 origin-top ${darkMode
-                      ? 'bg-gray-800 border border-gray-700 shadow-gray-900/50'
-                      : 'bg-white border border-gray-200 shadow-gray-400/30'
+                    className={`absolute top-full right-0 mt-2 w-64 rounded-2xl shadow-xl z-50 overflow-hidden transition-all duration-200 origin-top ${darkMode
+                        ? 'bg-gray-800 border border-gray-700 shadow-gray-900/50'
+                        : 'bg-white border border-gray-200 shadow-gray-400/30'
                       }`}
                   >
                     <div className={`p-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'
                       }`}>
                       <div className="flex items-center space-x-3">
-                    {user?.profile_picture ? (
-                      <>
-                        <img
-                          src={`http://localhost:8000/uploads/${user.profile_picture.replace(/^\/?uploads\//, '')}`}
-                          alt="Profile"
-                          className="rounded-full border-4 border-amber-500 shadow-lg"
-                          style={{ width: '48px', height: '48px', objectFit: 'cover', padding: '2px' }}
-                        />
-                      </>
-                    ) : (
-                      <div className={`bg-gradient-to-br rounded-full w-12 h-12 flex items-center justify-center text-white font-medium shadow-lg ${darkMode ? 'from-amber-500 to-amber-600' : 'from-amber-400 to-amber-500'
-                        }`}>
-                        {user?.name?.charAt(0).toUpperCase() || 'U'}
-                      </div>
-                    )}
+                        {user?.profile_picture ? (
+                          <>
+                            <img
+                              src={`http://localhost:8000/uploads/${user.profile_picture.replace(/^\/?uploads\//, '')}`}
+                              alt="Profile"
+                              className="rounded-full border-4 border-teal-500 shadow-lg"
+                              style={{ width: '48px', height: '48px', objectFit: 'cover', padding: '2px' }}
+                            />
+                          </>
+                        ) : (
+                          <div className={`bg-gradient-to-br rounded-full w-12 h-12 flex items-center justify-center text-white font-medium shadow-lg ${darkMode ? 'from-teal-500 to-cyan-600' : 'from-teal-400 to-cyan-500'
+                            }`}>
+                            {user?.name?.charAt(0).toUpperCase() || 'U'}
+                          </div>
+                        )}
                         <div className="overflow-hidden">
-                          <p className={`font-semibold truncate ${darkMode ? 'text-gray-300' : 'text-gray-900'}`}>
+                          <p className={`font-semibold truncate ${darkMode ? 'text-gray-300' : 'text-gray-900'
+                            }`}>
                             {user?.username || user?.name || 'User'}
                           </p>
-                          <p className={`text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          <p className={`text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'
+                            }`}>
                             {user?.email || 'user@example.com'}
                           </p>
                         </div>
@@ -383,7 +378,7 @@ function Header({
                     </div>
                     <div className="py-2">
                       <button
-                        className={`flex items-center w-full px-4 py-3 transition-colors duration-150 ${darkMode ? 'hover:bg-gray-700/50 text-gray-300' : 'hover:bg-amber-50 text-gray-700'
+                        className={`flex items-center w-full px-4 py-3 transition-colors duration-150 ${darkMode ? 'hover:bg-gray-700/50 text-gray-300' : 'hover:bg-teal-50 text-gray-700'
                           }`}
                         onClick={() => {
                           navigate('/profile');
@@ -394,7 +389,7 @@ function Header({
                         <span className="font-medium">Profile</span>
                       </button>
                       <button
-                        className={`flex items-center w-full px-4 py-3 transition-colors duration-150 ${darkMode ? 'hover:bg-gray-700/50 text-gray-300' : 'hover:bg-amber-50 text-gray-700'
+                        className={`flex items-center w-full px-4 py-3 transition-colors duration-150 ${darkMode ? 'hover:bg-gray-700/50 text-gray-300' : 'hover:bg-teal-50 text-gray-700'
                           }`}
                         onClick={() => {
                           onSignOut();
@@ -412,6 +407,7 @@ function Header({
           </div>
         </div>
       </header>
+
       <EditLabelsModal
         isOpen={isEditLabelsOpen}
         onClose={() => setIsEditLabelsOpen(false)}
