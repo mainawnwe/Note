@@ -1,67 +1,76 @@
 <?php
-// CORS headers
-header('Access-Control-Allow-Origin: http://127.0.0.1:3000');
+header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
-header('Content-Type: application/json');
-
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    // Handle preflight request
     http_response_code(200);
-    exit;
+    exit();
 }
 
-require_once __DIR__ . '/../../lib/auth.php';
 require_once __DIR__ . '/../../db/db-connection.php';
+require_once __DIR__ . '/../../lib/auth.php';
 
-$payload = getAuthenticatedUser();
-
-if (!$payload) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized']);
-    exit;
+function get_profile($pdo, $userId) {
+    $stmt = $pdo->prepare('SELECT id, username, email, first_name, last_name, profile_picture, bio FROM users WHERE id = ?');
+    $stmt->execute([$userId]);
+    $user = $stmt->fetch();
+    if (!$user) {
+        return null;
+    }
+    return [
+        'id' => (int)$user['id'],
+        'username' => $user['username'],
+        'email' => $user['email'],
+        'first_name' => $user['first_name'],
+        'last_name' => $user['last_name'],
+        'profile_picture' => $user['profile_picture'] ?: null,
+        'bio' => $user['bio'],
+    ];
 }
 
-$method = $_SERVER['REQUEST_METHOD'];
+try {
+    $auth = getAuthenticatedUser();
+    if (!$auth || empty($auth['userId'])) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Unauthorized']);
+        exit();
+    }
+    $userId = (int)$auth['userId'];
 
-if ($method === 'GET') {
-    try {
-        $stmt = $pdo->prepare("SELECT id, username, email, first_name, last_name, profile_picture, bio FROM users WHERE id = ?");
-        $stmt->execute([$payload['userId']]);
-        $user = $stmt->fetch();
-
-        if (!$user) {
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        $profile = get_profile($pdo, $userId);
+        if (!$profile) {
             http_response_code(404);
             echo json_encode(['error' => 'User not found']);
-            exit;
+            exit();
         }
-
-        $user['profile_picture'] = $user['profile_picture'] ? $user['profile_picture'] : null;
-
-        echo json_encode($user);
-    } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode(['error' => 'Server error']);
+        echo json_encode($profile);
+        exit();
     }
-} elseif ($method === 'POST') {
-    // Handle profile update
 
-    // Check if content type is multipart/form-data for file upload
-    if (strpos($_SERVER['CONTENT_TYPE'], 'multipart/form-data') !== false) {
-        $username = isset($_POST['username']) ? trim($_POST['username']) : '';
-        $email = isset($_POST['email']) ? trim($_POST['email']) : '';
-        $first_name = isset($_POST['first_name']) ? trim($_POST['first_name']) : '';
-        $last_name = isset($_POST['last_name']) ? trim($_POST['last_name']) : '';
-        $bio = isset($_POST['bio']) ? trim($_POST['bio']) : '';
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        // Process profile update (multipart/form-data)
+        $fields = [
+            'username' => isset($_POST['username']) ? trim($_POST['username']) : null,
+            'email' => isset($_POST['email']) ? trim($_POST['email']) : null,
+            'first_name' => array_key_exists('first_name', $_POST) ? trim((string)$_POST['first_name']) : null,
+            'last_name' => array_key_exists('last_name', $_POST) ? trim((string)$_POST['last_name']) : null,
+            'bio' => array_key_exists('bio', $_POST) ? trim((string)$_POST['bio']) : null,
+        ];
 
-        if (empty($username) || empty($email)) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Username and email cannot be empty']);
-            exit;
+        // Build dynamic SQL for provided fields
+        $setParts = [];
+        $params = [];
+        foreach ($fields as $col => $val) {
+            if ($val !== null && $val !== '') {
+                $setParts[] = "$col = ?";
+                $params[] = $val;
+            }
         }
 
-        // Handle profile picture upload if exists
-        $profile_picture_filename = null;
+        // Handle profile picture upload if provided
+        $profilePictureFilename = null;
         if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] === UPLOAD_ERR_OK) {
             $uploadDir = __DIR__ . '/../uploads/';
             if (!is_dir($uploadDir)) {
@@ -70,92 +79,38 @@ if ($method === 'GET') {
             $tmpName = $_FILES['profile_picture']['tmp_name'];
             $originalName = basename($_FILES['profile_picture']['name']);
             $ext = pathinfo($originalName, PATHINFO_EXTENSION);
-            $newFilename = uniqid('profile_', true) . '.' . $ext;
-            $destination = $uploadDir . $newFilename;
-
+            $profilePictureFilename = uniqid('profile_', true) . ($ext ? ('.' . $ext) : '');
+            $destination = $uploadDir . $profilePictureFilename;
             if (!move_uploaded_file($tmpName, $destination)) {
-                http_response_code(500);
+                http_response_code(400);
                 echo json_encode(['error' => 'Failed to upload profile picture']);
-                exit;
+                exit();
             }
-            $profile_picture_filename = $newFilename;
+            $setParts[] = 'profile_picture = ?';
+            $params[] = $profilePictureFilename;
         }
 
-        try {
-            // Check if username or email already exists for other users
-            $stmt = $pdo->prepare("SELECT id FROM users WHERE (username = ? OR email = ?) AND id != ?");
-            $stmt->execute([$username, $email, $payload['userId']]);
-            $existingUser = $stmt->fetch();
-
-            if ($existingUser) {
-                http_response_code(409);
-                echo json_encode(['error' => 'Username or email already in use']);
-                exit;
-            }
-
-            // Build update query dynamically
-            $fields = ['username = ?', 'email = ?', 'first_name = ?', 'last_name = ?', 'bio = ?'];
-            $params = [$username, $email, $first_name, $last_name, $bio];
-
-            if ($profile_picture_filename !== null) {
-                $fields[] = 'profile_picture = ?';
-                $params[] = $profile_picture_filename;
-            }
-
-            $fields[] = 'updated_at = NOW()';
-            $params[] = $payload['userId'];
-
-            $sql = "UPDATE users SET " . implode(', ', $fields) . " WHERE id = ?";
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute($params);
-
-            echo json_encode(['message' => 'Profile updated successfully']);
-        } catch (Exception $e) {
-            http_response_code(500);
-            echo json_encode(['error' => 'Server error']);
-        }
-    } else {
-        // Handle JSON input as before
-        $input = json_decode(file_get_contents('php://input'), true);
-
-        if (!isset($input['username']) || !isset($input['email'])) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Username and email are required']);
-            exit;
+        if (empty($setParts)) {
+            // Nothing to update, just return the current profile
+            $profile = get_profile($pdo, $userId);
+            echo json_encode($profile);
+            exit();
         }
 
-        $username = trim($input['username']);
-        $email = trim($input['email']);
+        $sql = 'UPDATE users SET ' . implode(', ', $setParts) . ' WHERE id = ?';
+        $params[] = $userId;
 
-        if (empty($username) || empty($email)) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Username and email cannot be empty']);
-            exit;
-        }
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
 
-        try {
-            // Check if username or email already exists for other users
-            $stmt = $pdo->prepare("SELECT id FROM users WHERE (username = ? OR email = ?) AND id != ?");
-            $stmt->execute([$username, $email, $payload['userId']]);
-            $existingUser = $stmt->fetch();
-
-            if ($existingUser) {
-                http_response_code(409);
-                echo json_encode(['error' => 'Username or email already in use']);
-                exit;
-            }
-
-            // Update user profile
-            $stmt = $pdo->prepare("UPDATE users SET username = ?, email = ?, updated_at = NOW() WHERE id = ?");
-            $stmt->execute([$username, $email, $payload['userId']]);
-
-            echo json_encode(['message' => 'Profile updated successfully']);
-        } catch (Exception $e) {
-            http_response_code(500);
-            echo json_encode(['error' => 'Server error']);
-        }
+        $updated = get_profile($pdo, $userId);
+        echo json_encode($updated);
+        exit();
     }
-} else {
+
     http_response_code(405);
     echo json_encode(['error' => 'Method not allowed']);
+} catch (Throwable $e) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Server error', 'message' => $e->getMessage()]);
 }

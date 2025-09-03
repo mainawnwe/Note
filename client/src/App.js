@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import MainContent from './components/MainContent';
@@ -35,6 +35,7 @@ function AppContent() {
 
   const [notesLoading, setNotesLoading] = useState(false);
   const [notes, setNotes] = useState([]);
+  const latestFetchId = useRef(0);
 
   const fetchLabels = async () => {
     try {
@@ -64,6 +65,7 @@ function AppContent() {
       setNotesLoading(true);
     }
     try {
+      const fetchId = ++latestFetchId.current;
       console.log('fetchNotes called with selectedType:', selectedType, 'currentLabel:', currentLabel, 'selectedCategory:', selectedCategory, 'currentTab:', currentTab);
       let url = 'http://localhost:8000';
       const statusCategories = ['trash', 'archive'];
@@ -99,6 +101,8 @@ function AppContent() {
           url += `?${queryString}`;
         }
       }
+      // Cache-bust to avoid stale results immediately after mutations
+      url += (url.includes('?') ? '&' : '?') + 't=' + Date.now();
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch notes: ${response.status}`);
@@ -109,14 +113,17 @@ function AppContent() {
         id: note.id.toString(),
         pinned: note.pinned === 1 || note.pinned === true || note.pinned === '1'
       }));
-      const activeNotes = formattedNotes.filter(note => note.status !== 'trashed');
-      activeNotes.sort((a, b) => {
+      const sortedNotes = [...formattedNotes].sort((a, b) => {
         if (a.pinned === b.pinned) {
           return new Date(b.createdAt) - new Date(a.createdAt);
         }
         return b.pinned - a.pinned;
       });
-      setNotes(activeNotes);
+      // Ignore out-of-order/stale responses
+      if (latestFetchId.current !== fetchId) {
+        return;
+      }
+      setNotes(sortedNotes);
     } catch (error) {
       console.error('Error fetching notes:', error);
     } finally {

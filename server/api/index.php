@@ -215,6 +215,10 @@ function handlePost($pdo) {
 
     $labels = $data['labels'] ?? [];
     $image_url = $data['image_url'] ?? '';
+    // Normalize status for creation; default to 'active'
+    $status = isset($data['status']) && in_array($data['status'], ['active', 'archived', 'trashed'], true)
+        ? $data['status']
+        : 'active';
 
     // Normalize reminder to database datetime format or null
     $reminderValue = $data['reminder'] ?? null;
@@ -256,8 +260,8 @@ function handlePost($pdo) {
     try {
         $pdo->beginTransaction();
 
-        $stmt = $pdo->prepare("INSERT INTO notes (title, content, type, color, pinned, image_url, drawing_data, reminder) 
-                                VALUES (:title, :content, :type, :color, :pinned, :image_url, :drawing_data, :reminder)");
+        $stmt = $pdo->prepare("INSERT INTO notes (title, content, type, color, pinned, image_url, drawing_data, reminder, status) 
+                                VALUES (:title, :content, :type, :color, :pinned, :image_url, :drawing_data, :reminder, :status)");
         $stmt->execute([
             ':title' => $title,
             ':content' => $content,
@@ -266,7 +270,8 @@ function handlePost($pdo) {
             ':pinned' => $pinned,
             ':image_url' => $image_url,
             ':drawing_data' => $drawing_data,
-            ':reminder' => $normalizedReminder
+            ':reminder' => $normalizedReminder,
+            ':status' => $status
         ]);
         $id = $pdo->lastInsertId();
 

@@ -28,6 +28,7 @@ const MultiSelectMainContent = ({
   const [showBulkDeleteConfirmation, setShowBulkDeleteConfirmation] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [modalContent, setModalContent] = useState({});
+  const [hiddenIds, setHiddenIds] = useState([]);
 
   const {
     selectedNoteIds,
@@ -50,7 +51,14 @@ const MultiSelectMainContent = ({
 
   const handleConfirmBulkDelete = async () => {
     try {
-      const response = await fetch('http://localhost:8000/bulk-permanent-delete.php', {
+      // Optimistically hide selected notes immediately
+      const toHide = selectedNoteIds.map(id => String(id));
+      setHiddenIds(prev => {
+        const merged = new Set(prev.map(String));
+        toHide.forEach(id => merged.add(id));
+        return Array.from(merged);
+      });
+      const response = await fetch(`${import.meta.env?.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'http://localhost:8000'}/bulk-permanent-delete.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -66,11 +74,16 @@ const MultiSelectMainContent = ({
       const result = await response.json();
       setShowBulkDeleteConfirmation(false);
       exitSelectionMode();
+
+      // Optimistically hide deleted notes
+      setHiddenIds(prev => {
+        const toHide = selectedNoteIds.map(id => String(id));
+        const merged = new Set(prev.map(String));
+        toHide.forEach(id => merged.add(id));
+        return Array.from(merged);
+      });
       
-      // Refresh notes after deletion
-      if (onRefreshNotes) {
-        await onRefreshNotes();
-      }
+      // Skip immediate refresh to avoid stale rehydration; UI already updated
       
       setModalContent({
         title: 'Success',
@@ -79,6 +92,9 @@ const MultiSelectMainContent = ({
       });
       setShowModal(true);
     } catch (error) {
+      // Rollback optimistic hide on failure
+      const toHide = selectedNoteIds.map(id => String(id));
+      setHiddenIds(prev => prev.filter(id => !toHide.includes(id)));
       setModalContent({
         title: 'Error',
         message: error.message || 'Failed to delete notes',
@@ -89,9 +105,14 @@ const MultiSelectMainContent = ({
   };
 
   const handleSingleDelete = async (noteId) => {
+    // Optimistically hide the note immediately
+    const idStr = String(noteId);
+    setHiddenIds(prev => (prev.includes(idStr) ? prev : [...prev, idStr]));
     try {
       await onSingleDelete(noteId);
     } catch (error) {
+      // Rollback on failure
+      setHiddenIds(prev => prev.filter(id => id !== idStr));
       setModalContent({
         title: 'Error',
         message: error.message || 'Failed to delete note',
@@ -114,7 +135,7 @@ const MultiSelectMainContent = ({
     }
   };
 
-  const filteredNotes = notes.filter(note => note.status === 'trashed');
+  const filteredNotes = notes.filter(note => note.status === 'trashed' && !hiddenIds.includes(String(note.id)));
 
   return (
     <div className={`flex flex-col min-h-screen ${darkMode ? 'bg-gradient-to-br from-gray-900 to-gray-800 text-gray-200' : 'bg-gradient-to-br from-gray-50 to-gray-100 text-gray-900'}`}>

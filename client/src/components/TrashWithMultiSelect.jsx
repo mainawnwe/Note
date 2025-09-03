@@ -33,8 +33,13 @@ const TrashWithMultiSelect = ({
   };
 
   const handleSingleDelete = async (noteId) => {
+    // Optimistically remove from both parent and local trashed state
+    const idStr = String(noteId);
+    setParentNotes(prev => prev.filter(n => String(n.id) !== idStr));
+    setTrashedNotes(prev => prev.filter(n => String(n.id) !== idStr));
     try {
-      const response = await fetch(`http://localhost:8000?id=${noteId}&permanent=1`, {
+      const base = (import.meta.env?.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'http://localhost:8000');
+      const response = await fetch(`${base}/api?id=${noteId}&permanent=1`, {
         method: 'DELETE'
       });
       
@@ -42,15 +47,22 @@ const TrashWithMultiSelect = ({
         throw new Error('Failed to delete note');
       }
       
-      await onRefreshNotes();
+      // Success: UI already updated optimistically; avoid immediate refresh
     } catch (error) {
+      // Rollback by reloading from server
+      await onRefreshNotes();
       throw error;
     }
   };
 
   const handleSingleRestore = async (noteId) => {
+    // Optimistically remove from both parent and local trashed state
+    const idStr = String(noteId);
+    setParentNotes(prev => prev.filter(n => String(n.id) !== idStr));
+    setTrashedNotes(prev => prev.filter(n => String(n.id) !== idStr));
     try {
-      const response = await fetch(`http://localhost:8000?id=${noteId}`, {
+      const base = (import.meta.env?.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'http://localhost:8000');
+      const response = await fetch(`${base}/api?id=${noteId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'active' })
@@ -60,8 +72,10 @@ const TrashWithMultiSelect = ({
         throw new Error('Failed to restore note');
       }
       
-      await onRefreshNotes();
+      // Success: UI already updated optimistically; avoid immediate refresh
     } catch (error) {
+      // Rollback by reloading from server
+      await onRefreshNotes();
       throw error;
     }
   };

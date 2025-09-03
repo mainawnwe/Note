@@ -18,10 +18,7 @@ const SelectableTrashNoteCard = ({
   const [isHovered, setIsHovered] = useState(false);
 
   const handlePermanentDelete = () => {
-    if (note.type === 'image' || note.type === 'drawing') {
-      console.log('Permanent deletion is not allowed for image and drawing notes.');
-      return; // Prevent deletion
-    }
+    // Allow permanent deletion for all note types including image and drawing
     setShowDeleteConfirmation(true);
   };
 

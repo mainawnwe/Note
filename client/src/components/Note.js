@@ -55,12 +55,14 @@ function Note(props) {
       if (props.listItems && props.listItems.length > 0) {
         setListItems(props.listItems);
       } else {
-        setListItems([]);
+        // Fallback: derive checklist items from plain text content when no structured listItems are present
+        const derived = parseListItemsFromContent(content);
+        setListItems(derived);
       }
     } else {
       setListItems([]);
     }
-  }, [props.listItems, type]);
+  }, [props.listItems, type, content]);
 
   useEffect(() => {
     setIsPinned(pinned || false);
@@ -167,17 +169,23 @@ function Note(props) {
             <SimpleNoteDisplay content={content} contentHtml={content} textColor={getTextColor(color)} searchTerm={searchTerm} />
           )}
           {type === 'list' && (
-            <>
-              {content && String(content).trim() !== '' && (
-                <div className="mb-2">
+            <div className="space-y-2">
+              {/* If content has non-checklist text, show it above the checklist */}
+              {(() => {
+                const txt = stripHtml(content);
+                const lines = String(txt || '').split(/\r?\n/).map(l => l.trim());
+                const itemTexts = (listItems || []).map(it => String(it?.text ?? '').trim()).filter(Boolean);
+                const nonChecklist = lines.filter(l => l && !itemTexts.includes(l));
+                const combined = nonChecklist.join('\n').trim();
+                return combined ? (
                   <SimpleNoteDisplay
-                    content={content}
-                    contentHtml={content}
+                    content={combined}
+                    contentHtml={null}
                     textColor={getTextColor(color)}
                     searchTerm={searchTerm}
                   />
-                </div>
-              )}
+                ) : null;
+              })()}
               <ListItemsDisplay
                 listItems={listItems}
                 onListItemsChange={() => {}}
@@ -185,12 +193,12 @@ function Note(props) {
                 isEditing={false}
                 searchTerm={searchTerm}
               />
-            </>
+            </div>
           )}
           {type === 'drawing' && (
             <DrawingNoteCardDisplay
               drawingData={drawingDataState}
-              content={content}
+              content={stripHtml(content)}
               textColor={getTextColor(color)}
               isEditing={false}
               onDrawingChange={() => {}}
@@ -212,7 +220,7 @@ function Note(props) {
                   }
                 })()
               }
-              content={content}
+              content={stripHtml(content)}
               textColor={getTextColor(color)}
               isEditing={false}
               onImageChange={() => {}}
@@ -237,7 +245,7 @@ function Note(props) {
             <p className={`text-xs ${getTextColor(color).replace('text-gray-800', 'text-gray-600').replace('text-gray-300', 'text-gray-500')}`}>
               {formatDate(createdAt)}
             </p>
-          {type === 'note' && props.reminder && (
+          {props.reminder && (
             <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center space-x-1">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3" />
@@ -301,6 +309,60 @@ function Note(props) {
     const lighter = Math.max(lum1, lum2);
     const darker = Math.min(lum1, lum2);
     return (lighter + 0.05) / (darker + 0.05);
+  }
+
+  function isPlainChecklistText(text) {
+    if (typeof text !== 'string') return false;
+    const trimmed = text.trim();
+    if (trimmed === '') return false;
+    const lines = trimmed.split('\n').filter(l => l.trim() !== '');
+    if (lines.length === 0) return false;
+    const re = /^\s*\[(?:\s|x|X)\]\s*/;
+    return lines.every(line => re.test(line));
+  }
+
+  function extractNonChecklistText(text) {
+    if (typeof text !== 'string') return '';
+    const lines = text.split('\n');
+    const re = /^\s*\[(?:\s|x|X)\]\s*/;
+    const kept = lines.filter(l => !re.test(l.trim())).map(l => l.trim());
+    const result = kept.join('\n').trim();
+    return result;
+  }
+
+  function stripHtml(html) {
+    if (typeof html !== 'string') return html;
+    try {
+      // Convert line breaks and paragraphs to newlines, then strip tags
+      let s = html.replace(/<br\s*\/?>(\n)?/gi, '\n');
+      s = s.replace(/<\/?p[^>]*>/gi, '\n');
+      s = s.replace(/<li[^>]*>/gi, '\n');
+      s = s.replace(/<\/?ul[^>]*>/gi, '\n');
+      s = s.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+      s = s.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+      s = s.replace(/<[^>]+>/g, '');
+      return s.replace(/\n{3,}/g, '\n\n').trim();
+    } catch {
+      return html;
+    }
+  }
+
+  // When a list note lacks structured listItems, derive them from plain text content
+  function parseListItemsFromContent(txt) {
+    if (!txt || typeof txt !== 'string') return [];
+    const plain = stripHtml(txt);
+    const lines = plain
+      .split(/\r?\n|\u2022|\u25CF|\u25A0|\-/) // split by newlines or common bullet chars
+      .map(l => l.trim())
+      .filter(Boolean);
+    if (lines.length === 0) return [];
+    return lines.map((line, idx) => {
+      // Detect [ ] or [x] prefixes
+      const m = line.match(/^\s*\[(x|X|\s)\]\s*(.*)$/);
+      const checked = !!(m && (m[1] === 'x' || m[1] === 'X'));
+      const text = m ? m[2] : line;
+      return { id: `derived-${idx}`, text, checked };
+    });
   }
 
   function getTextColor(bgColor) {

@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import NoteEditor from './NoteEditor';
-import { Plus, Type, List, Image, Edit3, Pin, Trash2, X } from 'lucide-react';
+import LabelSelector from './LabelSelector';
+import { Plus, Type, List, Image, Edit3, Pin, Trash2, X, Tag } from 'lucide-react';
+
+const normalizeLabels = (labels) => {
+  if (!Array.isArray(labels)) return [];
+  return labels.map(label =>
+    typeof label === 'string' ? label : String(label.id ?? label.name ?? label)
+  );
+};
 
 export default function CreateArea({
   onAdd,
@@ -14,9 +23,10 @@ export default function CreateArea({
 }) {
   const [isCreating, setIsCreating] = useState(startInCreatingMode);
   const [noteType, setNoteType] = useState('note');
-  const [selectedLabels, setSelectedLabels] = useState([]);
+  const [selectedLabels, setSelectedLabels] = useState(currentLabel ? [currentLabel] : []);
   const [isPinned, setIsPinned] = useState(false);
   const [noteColor, setNoteColor] = useState(darkMode ? '#1f2937' : '#ffffff');
+  const [showLabelsModal, setShowLabelsModal] = useState(false);
   
   // Handle Escape key to close modal
   useEffect(() => {
@@ -126,7 +136,6 @@ export default function CreateArea({
                 : 'bg-white/90 border border-teal-200'
             }`}
             onClick={() => setIsCreating(true)}
-            style={{ backgroundColor: noteColor }}
           >
             <div className="p-5">
               <div className="flex items-center">
@@ -182,11 +191,11 @@ export default function CreateArea({
           <div
             className={`rounded-3xl shadow-2xl w-[95vw] max-w-2xl max-h-[90vh] m-4 transition-all duration-300 transform scale-100 overflow-hidden ${
               darkMode 
-                ? 'bg-gray-800 border border-gray-700' 
-                : 'bg-white border border-teal-200/50'
+                ? 'bg-gray-800 border-2 border-gray-700' 
+                : 'bg-white border-2 border-teal-200'
             }`}
             onClick={(e) => e.stopPropagation()}
-            style={{ backgroundColor: noteColor, paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 96px)' }}
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 96px)', borderColor: noteColor }}
           >
             <div className="relative flex flex-col h-full min-h-0">
               {/* Header */}
@@ -231,10 +240,21 @@ export default function CreateArea({
                 </div>
                 <div className="flex items-center space-x-2 relative z-20">
                   <button
+                    onClick={() => setShowLabelsModal(true)}
+                    className={`p-2 rounded-full transition-all duration-200 ${
+                      darkMode
+                        ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
+                        : 'text-gray-500 hover:text-gray-700 hover:bg-teal-100/50'
+                    }`}
+                    title="Select labels"
+                  >
+                    <Tag className="w-5 h-5" />
+                  </button>
+                  <button
                     onClick={handleCancel}
                     className={`p-2 rounded-full transition-all duration-200 ${
-                      darkMode 
-                        ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50' 
+                      darkMode
+                        ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
                         : 'text-gray-500 hover:text-gray-700 hover:bg-teal-100/50'
                     }`}
                     title="Close"
@@ -300,6 +320,32 @@ export default function CreateArea({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Labels Modal */}
+      {showLabelsModal && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[11000]" onClick={() => setShowLabelsModal(false)}>
+          <div className={`rounded-2xl p-6 max-w-md w-full mx-4 ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'} shadow-2xl`} onClick={(e) => e.stopPropagation()}>
+            <LabelSelector
+              selectedLabels={selectedLabels}
+              onChange={(labels) => {
+                setSelectedLabels(labels);
+                onLabelsChange?.(normalizeLabels(labels));
+              }}
+              darkMode={darkMode}
+              showCreateForm={true}
+            />
+            <div className="flex justify-end mt-4 space-x-2">
+              <button
+                onClick={() => setShowLabelsModal(false)}
+                className="px-4 py-2 rounded-xl hover:bg-gray-200"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -58,7 +58,21 @@ export const AuthProvider = ({ children }) => {
             setUser(userData);
         } catch (error) {
             console.error('AuthContext: profile fetch error after login:', error);
-            setUser(response.data.user); // fallback to user from login response
+            const fallbackUser = { ...response.data.user };
+            // Map camelCase to snake_case if needed
+            if (fallbackUser.profilePicture && !fallbackUser.profile_picture) {
+                fallbackUser.profile_picture = fallbackUser.profilePicture;
+            }
+            // Normalize profile_picture to '/uploads/<filename>' if it's a bare filename or '/uploads/...'
+            if (fallbackUser.profile_picture) {
+                const cleaned = String(fallbackUser.profile_picture).replace(/^\/?uploads\//, '');
+                if (!cleaned.startsWith('http')) {
+                    fallbackUser.profile_picture = '/uploads/' + cleaned;
+                } else {
+                    fallbackUser.profile_picture = cleaned;
+                }
+            }
+            setUser(fallbackUser); // fallback to user from login response (normalized)
         }
     };
 

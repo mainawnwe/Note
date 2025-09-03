@@ -263,10 +263,10 @@ const DrawingNoteCardDisplay = ({
         
         {/* Content Text */}
         {content && (
-          <div className={`p-3 ${textColor || (darkMode ? 'text-gray-200' : 'text-gray-800')}`}>
-            <div className="text-sm">
+          <div className="mt-3 rounded-xl px-3 py-2 border bg-gray-50 text-gray-800 border-gray-200 dark:bg-gray-800/60 dark:text-gray-200 dark:border-gray-700">
+            <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${textColor || (darkMode ? 'text-gray-200' : 'text-gray-800')}`}>
               {highlightSearchTerm(content)}
-            </div>
+            </p>
           </div>
         )}
         

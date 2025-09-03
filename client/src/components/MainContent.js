@@ -26,6 +26,8 @@ import Header from './Header';
 import DrawingNoteCardDisplay from './DrawingNoteCardDisplay';
 import ImageNoteCardDisplay from './ImageNoteCardDisplay';
 import TrashNoteCard from './TrashNoteCard';
+import TrashWithMultiSelect from './TrashWithMultiSelect';
+import SelectableNoteCard from './SelectableNoteCard';
 
 // Fix the environment variable access
 const NOTES_API_ENDPOINT = import.meta.env?.VITE_API_BASE_URL || 'http://localhost:8000/api';
@@ -61,6 +63,9 @@ export default function MainContent({
   const [isCreateAreaVisible, setIsCreateAreaVisible] = React.useState(false);
   const [hoveredNoteId, setHoveredNoteId] = React.useState(null);
   const [localNotes, setLocalNotes] = React.useState(parentNotes || []);
+  // Selection mode for non-trash tabs
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
   
   // Fetch notes function
   const fetchNotes = useCallback(async () => {
@@ -86,7 +91,7 @@ export default function MainContent({
           break;
         case 'reminders':
           params.append('status', 'active');
-          params.append('with_reminders', 'true');
+          params.append('reminder', 'not_null');
           break;
         case 'pinned':
           params.append('status', 'active');
@@ -134,17 +139,20 @@ export default function MainContent({
   // Fetch notes when currentTab changes or when explicitly triggered
   useEffect(() => {
     fetchNotes();
+    // Reset selection when tab changes
+    setIsSelectionMode(false);
+    setSelectedIds([]);
   }, [currentTab, fetchNotes]);
   
   // Sync with parent notes state when it changes, but prevent unnecessary updates
   React.useEffect(() => {
-    if (parentNotes && JSON.stringify(parentNotes) !== JSON.stringify(localNotes)) {
+    if (Array.isArray(parentNotes)) {
       setLocalNotes(parentNotes);
       const now = new Date();
       const upcoming = parentNotes.filter(note => note.reminder && new Date(note.reminder) > now && note.status !== 'trashed');
       setUpcomingReminders(upcoming);
     }
-  }, [parentNotes, localNotes]);
+  }, [parentNotes]);
   
   React.useEffect(() => {
     if (showModal && modalContent.type === 'success') {
@@ -165,6 +173,48 @@ export default function MainContent({
   const handleLabelClick = (label) => {
     // Label click handling
   };
+
+  // Selection helpers (non-trash tabs)
+  const toggleSelectionMode = () => {
+    setIsSelectionMode(prev => !prev);
+    if (isSelectionMode) setSelectedIds([]);
+  };
+  const toggleSelection = (noteId, selected) => {
+    const id = String(noteId);
+    setSelectedIds(prev => {
+      const has = prev.includes(id);
+      if (selected && !has) return [...prev, id];
+      if (!selected && has) return prev.filter(x => x !== id);
+      return prev;
+    });
+  };
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    const originals = localNotes;
+    // optimistic hide
+    setLocalNotes(prev => prev.filter(n => !selectedIds.includes(String(n.id))));
+    try {
+      if (currentTab === 'trashed') {
+        await Promise.all(selectedIds.map(async (id) => {
+          const res = await fetch(`${NOTES_API_ENDPOINT}?id=${id}&permanent=1`, { method: 'DELETE' });
+          if (!res.ok) throw new Error('Failed to permanently delete');
+        }));
+      } else {
+        await Promise.all(selectedIds.map(async (id) => {
+          const res = await fetch(`${NOTES_API_ENDPOINT}?id=${id}`, { method: 'DELETE' });
+          if (!res.ok) throw new Error('Failed to delete');
+        }));
+      }
+      if (currentTab !== 'trashed') {
+        await onRefreshNotes?.();
+      }
+      setSelectedIds([]);
+      setIsSelectionMode(false);
+    } catch (e) {
+      setLocalNotes(originals);
+      showErrorModal(e.message || 'Bulk delete failed');
+    }
+  };
   
   const handleAddNote = async (newNote) => {
     try {
@@ -180,13 +230,27 @@ export default function MainContent({
         contentForBackend = (newNote.content && String(newNote.content).trim() !== '')
           ? newNote.content
           : listText;
-      } else {
+      } else if (newNote.type === 'note') {
+        // For plain text notes, prefer HTML when available
         contentForBackend = contentHtml ?? (newNote.content || '');
+      } else {
+        // For image/drawing notes, store plain text content only
+        contentForBackend = newNote.content || '';
       }
+      const labelIds = Array.isArray(newNote.labels)
+        ? newNote.labels.map(l => {
+            if (typeof l === 'object' && l !== null && l.id != null) return l.id;
+            const s = String(l);
+            const byId = (allLabels || []).find(L => String(L.id) === s);
+            if (byId) return byId.id;
+            const byName = (allLabels || []).find(L => String(L.name) === s);
+            return byName ? byName.id : null;
+          }).filter(v => v != null)
+        : [];
       const payload = {
         title: newNote.title,
         content: contentForBackend,
-        content_html: contentHtml,
+        content_html: newNote.type === 'note' ? contentHtml : null,
         type: newNote.type,
         color: newNote.color || '#ffffff',
         pinned: newNote.pinned || false,
@@ -194,11 +258,9 @@ export default function MainContent({
         drawing_data: newNote.type === 'drawing' ? (newNote.drawing_data ?? null) : null,
         image_url: newNote.type === 'image' ? (newNote.image_url ?? null) : null,
         category: newNote.category || null,
-        labels: Array.isArray(newNote.labels)
-          ? newNote.labels.map(l => (typeof l === 'object' && l !== null && l.id ? l.id : l))
-          : [],
+        labels: labelIds,
         reminder: newNote.reminder || null,
-        status: 'active',
+        status: newNote.status ?? 'active',
       };
       console.log('Sending note payload:', payload);
       const response = await fetch(NOTES_API_ENDPOINT, {
@@ -235,7 +297,7 @@ export default function MainContent({
     try {
       // Optimistic update: immediately remove the note from local state
       const originalNotes = localNotes;
-      setLocalNotes(prevNotes => prevNotes.filter(note => note.id !== id));
+      setLocalNotes(prevNotes => prevNotes.filter(note => String(note.id) !== String(id)));
       if (currentTab === 'trashed') {
         const response = await fetch(`${NOTES_API_ENDPOINT}?id=${id}&permanent=1`, {
           method: 'DELETE'
@@ -270,7 +332,7 @@ export default function MainContent({
     try {
       // Optimistic update: immediately remove the note from trash
       const originalNotes = localNotes;
-      setLocalNotes(prevNotes => prevNotes.filter(note => note.id !== id));
+      setLocalNotes(prevNotes => prevNotes.filter(note => String(note.id) !== String(id)));
       const response = await fetch(`${NOTES_API_ENDPOINT}?id=${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -330,6 +392,9 @@ export default function MainContent({
         throw new Error(errorData.message || 'Failed to update note');
       }
       await onRefreshNotes();
+      // Close the editor modal immediately after a successful save
+      setIsNoteDetailsOpen(false);
+      setSelectedNote(null);
       console.log('Notes after update:', localNotes);
     } catch (err) {
       setModalContent({
@@ -364,8 +429,7 @@ export default function MainContent({
     } else if (currentTab === 'trashed') {
       filtered = filtered.filter(note => note.status === 'trashed');
     } else if (currentTab === 'reminders') {
-      const now = new Date();
-      filtered = filtered.filter(note => note.reminder && new Date(note.reminder) > now && note.status !== 'trashed');
+      filtered = filtered.filter(note => note.reminder && String(note.reminder).trim() !== '' && note.status !== 'trashed');
     } else if (currentTab === 'pinned') {
       filtered = filtered.filter(note => note.pinned);
     } else if (currentTab === 'labels' && currentLabel) {
@@ -399,7 +463,17 @@ export default function MainContent({
   
   // Highlight notes with due reminders
   const now = new Date();
-  const highlightedNotes = filteredNotes.map(note => {
+  const sortedNotes = [...filteredNotes].sort((a, b) => {
+    const ap = !!a.pinned;
+    const bp = !!b.pinned;
+    if (ap === bp) {
+      const ad = new Date(a.createdAt || a.created_at || 0).getTime();
+      const bd = new Date(b.createdAt || b.created_at || 0).getTime();
+      return bd - ad; // Newer first when same pin status
+    }
+    return bp - ap; // Pinned first
+  });
+  const highlightedNotes = sortedNotes.map(note => {
     const reminderDate = note.reminder ? new Date(note.reminder) : null;
     return {
       ...note,
@@ -412,7 +486,7 @@ export default function MainContent({
     notes: localNotes.filter(note => !note.status || note.status === 'active').length,
     archived: localNotes.filter(note => note.status === 'archived').length,
     trashed: localNotes.filter(note => note.status === 'trashed').length,
-    reminders: localNotes.filter(note => note.reminder && new Date(note.reminder) > new Date() && note.status !== 'trashed').length,
+    reminders: localNotes.filter(note => note.reminder && String(note.reminder).trim() !== '' && note.status !== 'trashed').length,
     pinned: localNotes.filter(note => note.pinned).length,
     labels: allLabels.length,
   };
@@ -448,7 +522,55 @@ export default function MainContent({
     return luminance < 0.5 ? 'text-white' : 'text-black';
   };
   
+  const stripHtml = (html) => {
+    if (typeof html !== 'string') return html;
+    try {
+      let s = html.replace(/<br\s*\/?>(\n)?/gi, '\n');
+      s = s.replace(/<\/?p[^>]*>/gi, '\n');
+      s = s.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+      s = s.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+      s = s.replace(/<[^>]+>/g, '');
+      return s.replace(/\n{3,}/g, '\n\n').trim();
+    } catch {
+      return html;
+    }
+  };
+
   const tabInfo = getTabTitle();
+  
+  // Render dedicated Trash view with multi-select
+  if (currentTab === 'trashed') {
+    return (
+      <div className={`flex flex-col min-h-screen ${darkMode
+          ? 'bg-gradient-to-br from-gray-900 to-gray-800 text-gray-200'
+          : 'bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-50 text-gray-900'
+        }`}>
+        <div className="flex flex-col flex-grow">
+          <main className={`flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 transition-all duration-300 relative`}>
+            <TrashWithMultiSelect
+              isGridView={isGridView}
+              searchTerm={searchTerm}
+              selectedCategory={selectedCategory}
+              selectedType={selectedType}
+              onBack={onBack}
+              onClose={onClose}
+              onLabelClick={onLabelClick}
+              allLabels={allLabels}
+              setAllLabels={setAllLabels}
+              onRefreshNotes={onRefreshNotes}
+              notesLoading={notesLoading}
+              notes={localNotes}
+              setNotes={setParentNotes}
+              currentTab={currentTab}
+              currentLabel={currentLabel}
+              darkMode={darkMode}
+            />
+          </main>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
   
   return (
     // Main container with flex column and minimum height of screen
@@ -506,6 +628,28 @@ export default function MainContent({
                     <Plus className="h-5 w-5 mr-2" />
                     New Note
                   </button>
+                  {currentTab !== 'trashed' && (
+                    <>
+                      <button
+                        onClick={toggleSelectionMode}
+                        className={`flex items-center px-4 py-2 rounded-xl transition-all shadow-sm ${isSelectionMode
+                          ? (darkMode ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-blue-600 hover:bg-blue-500 text-white')
+                          : (darkMode ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-white hover:bg-gray-100 text-gray-700')}`}
+                      >
+                        {isSelectionMode ? 'Exit Selection' : 'Select Notes'}
+                      </button>
+                      {isSelectionMode && (
+                        <button
+                          onClick={handleBulkDelete}
+                          className={`flex items-center px-4 py-2 rounded-xl transition-all shadow-sm ${darkMode ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-red-600 hover:bg-red-500 text-white'}`}
+                          disabled={selectedIds.length === 0}
+                          title={selectedIds.length === 0 ? 'No notes selected' : 'Delete selected notes'}
+                        >
+                          Delete Selected ({selectedIds.length})
+                        </button>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
               {/* Label Info Bar */}
@@ -670,6 +814,25 @@ export default function MainContent({
                   
                   // Debug: Log note type
                   console.log(`Rendering note with type: ${note.type}`, note);
+
+                  // In selection mode, render selectable wrapper for all types
+                  if (isSelectionMode) {
+                    return (
+                      <SelectableNoteCard
+                        key={note.id}
+                        note={{
+                          ...note,
+                          onDelete: handleDeleteNote,
+                          onUpdate: handleUpdateNote,
+                          onOpenNoteEditor: openNoteDetails,
+                        }}
+                        darkMode={darkMode}
+                        isSelectionMode={true}
+                        isSelected={selectedIds.includes(String(note.id))}
+                        onSelectionChange={toggleSelection}
+                      />
+                    );
+                  }
                   
                   if (note.type === 'drawing') {
                     return (
@@ -713,12 +876,12 @@ export default function MainContent({
                           <div className="mb-4 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 min-h-[200px] flex items-center justify-center">
                             {note.drawing_data ? (
                               <DrawingNoteCardDisplay
-                                drawingData={note.drawing_data}
-                                content={note.content}
-                                textColor={getTextColorClass(note.color)}
-                                isEditing={false}
-                                searchTerm={searchTerm}
-                                onDrawingChange={() => { }}
+                              drawingData={note.drawing_data}
+                              content={stripHtml(note.content)}
+                              textColor={getTextColorClass(note.color)}
+                              isEditing={false}
+                              searchTerm={searchTerm}
+                              onDrawingChange={() => { }}
                               />
                             ) : (
                               <div className="text-center p-4">
@@ -812,7 +975,7 @@ export default function MainContent({
                             {parsedImageData ? (
                               <ImageNoteCardDisplay
                                 imageData={parsedImageData}
-                                content={note.content}
+                                content={stripHtml(note.content)}
                                 textColor={getTextColorClass(note.color)}
                                 isEditing={false}
                                 searchTerm={searchTerm}
@@ -878,17 +1041,33 @@ export default function MainContent({
                       );
                     } else {
                       return (
-                        <Note
-                          key={note.id}
-                          {...note}
-                          onDelete={handleDeleteNote}
-                          onUpdate={handleUpdateNote}
-                          onOpenNoteEditor={openNoteDetails}
-                          darkMode={darkMode}
-                          isReminderDue={isReminderDue}
-                          hoveredNoteId={hoveredNoteId}
-                          setHoveredNoteId={setHoveredNoteId}
-                        />
+                        isSelectionMode ? (
+                          <SelectableNoteCard
+                            key={note.id}
+                            note={{
+                              ...note,
+                              onDelete: handleDeleteNote,
+                              onUpdate: handleUpdateNote,
+                              onOpenNoteEditor: openNoteDetails,
+                            }}
+                            darkMode={darkMode}
+                            isSelectionMode={true}
+                            isSelected={selectedIds.includes(String(note.id))}
+                            onSelectionChange={toggleSelection}
+                          />
+                        ) : (
+                          <Note
+                            key={note.id}
+                            {...note}
+                            onDelete={handleDeleteNote}
+                            onUpdate={handleUpdateNote}
+                            onOpenNoteEditor={openNoteDetails}
+                            darkMode={darkMode}
+                            isReminderDue={isReminderDue}
+                            hoveredNoteId={hoveredNoteId}
+                            setHoveredNoteId={setHoveredNoteId}
+                          />
+                        )
                       );
                     }
                   }

@@ -33,12 +33,13 @@ try {
 
     // Prepare user data response
     $userData = [
-        'id' => $user['id'],
+        'id' => (int)$user['id'],
         'username' => $user['username'],
         'email' => $user['email'],
-        'firstName' => $user['first_name'],
-        'lastName' => $user['last_name'],
-        'profilePicture' => $user['profile_picture'] ? "/uploads/{$user['profile_picture']}" : null,
+        'first_name' => $user['first_name'],
+        'last_name' => $user['last_name'],
+        // Keep only filename; client will normalize to /uploads/<filename>
+        'profile_picture' => $user['profile_picture'] ?: null,
         'bio' => $user['bio']
     ];
 

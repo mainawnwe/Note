@@ -36,16 +36,23 @@ function DrawingCanvas({
     if (canvas) {
       const context = canvas.getContext('2d');
       setCtx(context);
-      // Set initial canvas size and background
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
+      // Set initial canvas size (HiDPI aware) and background
+      const dpr = window.devicePixelRatio || 1;
+      const displayWidth = canvas.clientWidth;
+      const displayHeight = canvas.clientHeight;
+      canvas.width = Math.floor(displayWidth * dpr);
+      canvas.height = Math.floor(displayHeight * dpr);
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.scale(dpr, dpr);
       context.fillStyle = darkMode ? '#1f2937' : '#ffffff'; // Canvas background
-      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.fillRect(0, 0, displayWidth, displayHeight);
       
       if (initialDrawingData) {
         const img = new Image();
         img.onload = () => {
-          context.drawImage(img, 0, 0);
+          const w = canvas.clientWidth;
+          const h = canvas.clientHeight;
+          context.drawImage(img, 0, 0, w, h);
           saveState(); // Save initial state to history
         };
         img.src = initialDrawingData;
@@ -84,7 +91,7 @@ function DrawingCanvas({
   const draw = (e) => {
     if (!isDrawing || !ctx) return;
     const currentPos = getMousePos(canvasRef.current, e);
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 4;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.strokeStyle = drawingColor || (darkMode ? '#14b8a6' : '#0f766e'); // Drawing color with teal as default
@@ -111,9 +118,11 @@ function DrawingCanvas({
 
   const handleClear = () => {
     if (ctx && canvasRef.current) {
-      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      const w = canvasRef.current.clientWidth;
+      const h = canvasRef.current.clientHeight;
+      ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = darkMode ? '#1f2937' : '#ffffff'; // Re-fill background
-      ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      ctx.fillRect(0, 0, w, h);
       saveState(); // Save clear state to history
     }
   };
@@ -125,10 +134,12 @@ function DrawingCanvas({
       const img = new Image();
       img.onload = () => {
         if (ctx && canvasRef.current) {
-          ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+          const w = canvasRef.current.clientWidth;
+          const h = canvasRef.current.clientHeight;
+          ctx.clearRect(0, 0, w, h);
           ctx.fillStyle = darkMode ? '#1f2937' : '#ffffff';
-          ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-          ctx.drawImage(img, 0, 0);
+          ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
         }
       };
       img.src = prevDataUrl;
@@ -142,10 +153,12 @@ function DrawingCanvas({
       const img = new Image();
       img.onload = () => {
         if (ctx && canvasRef.current) {
-          ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+          const w = canvasRef.current.clientWidth;
+          const h = canvasRef.current.clientHeight;
+          ctx.clearRect(0, 0, w, h);
           ctx.fillStyle = darkMode ? '#1f2937' : '#ffffff';
-          ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-          ctx.drawImage(img, 0, 0);
+          ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
         }
       };
       img.src = nextDataUrl;
@@ -236,7 +249,7 @@ function DrawingCanvas({
         onMouseMove={draw}
         onMouseUp={stopDrawing}
         onMouseOut={stopDrawing}
-        className="w-full h-64 rounded-xl border-2 border-dashed cursor-crosshair transition-all duration-300"
+        className="w-full h-[22rem] md:h-[28rem] rounded-xl border-2 cursor-crosshair transition-all duration-300 shadow-inner"
         style={{ 
           // Allow vertical scrolling in parent containers on touch devices
           touchAction: 'pan-y',

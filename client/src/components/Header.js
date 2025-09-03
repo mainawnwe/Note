@@ -324,7 +324,9 @@ function Header({
                 >
                   {user?.profile_picture ? (
                     <img
-                      src={`http://localhost:8000/uploads/${user.profile_picture.replace(/^\/?uploads\//, '')}`}
+                      src={String(user.profile_picture).startsWith('http')
+                        ? user.profile_picture
+                        : `http://localhost:8000/uploads/${String(user.profile_picture).replace(/^\/?uploads\//, '')}`}
                       alt="Profile"
                       className="rounded-full shadow-md transition-transform duration-300 hover:scale-105"
                       style={{ width: '32px', height: '32px', objectFit: 'cover' }}
@@ -352,7 +354,9 @@ function Header({
                         {user?.profile_picture ? (
                           <>
                             <img
-                              src={`http://localhost:8000/uploads/${user.profile_picture.replace(/^\/?uploads\//, '')}`}
+                              src={String(user.profile_picture).startsWith('http')
+                                ? user.profile_picture
+                                : `http://localhost:8000/uploads/${String(user.profile_picture).replace(/^\/?uploads\//, '')}`}
                               alt="Profile"
                               className="rounded-full border-4 border-teal-500 shadow-lg"
                               style={{ width: '48px', height: '48px', objectFit: 'cover', padding: '2px' }}
